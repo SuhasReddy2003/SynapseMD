@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  border-color: theme("colors.base.400");
+}
+
+html,
+body {
+  height: 100%;
+  background: #05070a;
+}
+
+body {
+  @apply bg-base-50 text-ink-primary antialiased;
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
+}
+
+/* Visible keyboard focus everywhere, no exceptions for mouse users being noisy */
+:focus-visible {
+  outline: 2px solid theme("colors.synapse.DEFAULT");
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Thin, quiet scrollbars that fit the instrument-panel feel */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: theme("colors.base.500") transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: theme("colors.base.500");
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-base-400 bg-base-200/60 shadow-panel;
+  }
+
+  .panel-header {
+    @apply flex items-center justify-between border-b border-base-400 px-4 py-3;
+  }
+
+  .hairline-divider {
+    @apply border-t border-base-400;
+  }
+
+  .tabular {
+    @apply font-mono tabular-nums;
+  }
+}
