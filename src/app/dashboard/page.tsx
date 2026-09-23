@@ -10,6 +10,7 @@ import { VitalTrends } from "@/components/dashboard/VitalTrends";
 import { Timeline } from "@/components/dashboard/Timeline";
 import { EvidenceGraph } from "@/components/dashboard/EvidenceGraph";
 import { HypothesisExplorer } from "@/components/dashboard/HypothesisExplorer";
+import { ClinicalDelta } from "@/components/dashboard/ClinicalDelta";
 import { PatientProvider } from "@/components/patient/PatientContext";
 import { dashboardSections, type SectionId } from "@/lib/navigation";
 
@@ -44,6 +45,10 @@ function DashboardShell() {
           ) : active === "hypotheses" ? (
             <div className="h-full">
               <HypothesisExplorer />
+            </div>
+          ) : active === "delta" ? (
+            <div className="h-full">
+              <ClinicalDelta />
             </div>
           ) : (
             <div className="panel h-full">

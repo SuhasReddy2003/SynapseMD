@@ -77,3 +77,31 @@ export interface ClinicalHypothesis {
   missingInformation: string[];
   temporalRelationships: string[];
 }
+
+export interface VitalDeltaEntry {
+  kind: VitalKind;
+  label: string;
+  unit: string;
+  decimals: number;
+  fromValue: number;
+  toValue: number;
+  fromSeverity: SeverityLevel;
+  toSeverity: SeverityLevel;
+  changed: boolean;
+}
+
+export interface MedicationDeltaEntry {
+  eventId: string;
+  label: string;
+  fromPresent: boolean;
+  toPresent: boolean;
+}
+
+export interface ClinicalDeltaResult {
+  fromTimestamp: string;
+  toTimestamp: string;
+  vitals: VitalDeltaEntry[];
+  medications: MedicationDeltaEntry[];
+  eventCountFrom: number;
+  eventCountTo: number;
+}

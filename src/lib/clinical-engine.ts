@@ -1,8 +1,11 @@
 import type { SeverityLevel } from "@/lib/design-tokens";
 import { clinicalEvents, vitalDefinitions, vitalSeries } from "@/lib/mock-data";
 import type {
+  ClinicalDeltaResult,
   ClinicalEvent,
+  MedicationDeltaEntry,
   SynapseIndexResult,
+  VitalDeltaEntry,
   VitalKind,
   VitalObservation,
 } from "@/lib/types";
@@ -118,5 +121,52 @@ export function computeSynapseIndex(tickIndex: number): SynapseIndexResult {
       { label: "Laboratory stability", score: laboratoryStability, level: levelForScore(laboratoryStability) },
       { label: "Recent events", score: recentEvents, level: levelForScore(recentEvents) },
     ],
+  };
+}
+
+const ALL_VITAL_KINDS_DELTA: VitalKind[] = ["heartRate", "spo2", "map", "temperature", "potassium"];
+
+/**
+ * Compares two points in the patient's revealed record — "What Changed".
+ * Both indices must be <= the current tick; the earlier one is always treated as "from".
+ */
+export function buildClinicalDelta(indexA: number, indexB: number): ClinicalDeltaResult {
+  const [fromIndex, toIndex] = indexA <= indexB ? [indexA, indexB] : [indexB, indexA];
+  const fromTimestamp = vitalSeries.heartRate[fromIndex]!.timestamp;
+  const toTimestamp = vitalSeries.heartRate[toIndex]!.timestamp;
+
+  const vitals: VitalDeltaEntry[] = ALL_VITAL_KINDS_DELTA.map((kind) => {
+    const def = vitalDefinitions[kind];
+    const from = latestObservation(kind, fromIndex);
+    const to = latestObservation(kind, toIndex);
+    return {
+      kind,
+      label: def.label,
+      unit: def.unit,
+      decimals: def.decimals,
+      fromValue: from.value,
+      toValue: to.value,
+      fromSeverity: severityForVital(kind, from.value),
+      toSeverity: severityForVital(kind, to.value),
+      changed: Math.abs(to.value - from.value) > 0.001,
+    };
+  });
+
+  const medications: MedicationDeltaEntry[] = clinicalEvents
+    .filter((e) => e.type === "medication")
+    .map((e) => ({
+      eventId: e.id,
+      label: e.title,
+      fromPresent: e.timestamp <= fromTimestamp,
+      toPresent: e.timestamp <= toTimestamp,
+    }));
+
+  return {
+    fromTimestamp,
+    toTimestamp,
+    vitals,
+    medications,
+    eventCountFrom: eventsUpTo(fromIndex).length,
+    eventCountTo: eventsUpTo(toIndex).length,
   };
 }
