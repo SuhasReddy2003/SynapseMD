@@ -11,6 +11,7 @@ import { Timeline } from "@/components/dashboard/Timeline";
 import { EvidenceGraph } from "@/components/dashboard/EvidenceGraph";
 import { HypothesisExplorer } from "@/components/dashboard/HypothesisExplorer";
 import { ClinicalDelta } from "@/components/dashboard/ClinicalDelta";
+import { IngestionPanel } from "@/components/dashboard/IngestionPanel";
 import { PatientProvider } from "@/components/patient/PatientContext";
 import { dashboardSections, type SectionId } from "@/lib/navigation";
 
@@ -37,6 +38,10 @@ function DashboardShell() {
           ) : active === "timeline" ? (
             <div className="h-full">
               <Timeline />
+            </div>
+          ) : active === "ingestion" ? (
+            <div className="h-full">
+              <IngestionPanel />
             </div>
           ) : active === "evidence" ? (
             <div className="h-full">

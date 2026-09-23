@@ -1,8 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { patient } from "@/lib/mock-data";
-import { POINT_COUNT } from "@/lib/mock-data";
+import { patient, POINT_COUNT } from "@/lib/mock-data";
 import { computeSynapseIndex, eventsUpTo } from "@/lib/clinical-engine";
 import type { Patient, SynapseIndexResult, ClinicalEvent } from "@/lib/types";
 
@@ -10,7 +9,10 @@ interface PatientContextValue {
   patient: Patient;
   tickIndex: number;
   synapseIndex: SynapseIndexResult;
+  /** Base revealed-by-tick events plus anything ingestion has added, timestamp-ordered. */
   events: ClinicalEvent[];
+  ingestedCount: number;
+  addIngestedEvent: (event: ClinicalEvent) => void;
 }
 
 const PatientContext = createContext<PatientContextValue | null>(null);
@@ -20,6 +22,7 @@ const MIN_TICK_INDEX = 8; // start the demo just after the medication event so t
 
 export function PatientProvider({ children }: { children: React.ReactNode }) {
   const [tickIndex, setTickIndex] = useState(MIN_TICK_INDEX);
+  const [ingestedEvents, setIngestedEvents] = useState<ClinicalEvent[]>([]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -28,15 +31,23 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
-  const value = useMemo<PatientContextValue>(
-    () => ({
+  function addIngestedEvent(event: ClinicalEvent) {
+    setIngestedEvents((prev) => [...prev, event]);
+  }
+
+  const value = useMemo<PatientContextValue>(() => {
+    const events = [...eventsUpTo(tickIndex), ...ingestedEvents].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    return {
       patient,
       tickIndex,
-      synapseIndex: computeSynapseIndex(tickIndex),
-      events: eventsUpTo(tickIndex),
-    }),
-    [tickIndex]
-  );
+      synapseIndex: computeSynapseIndex(tickIndex, events),
+      events,
+      ingestedCount: ingestedEvents.length,
+      addIngestedEvent,
+    };
+  }, [tickIndex, ingestedEvents]);
 
   return (
     <PatientContext.Provider value={value}>{children}</PatientContext.Provider>

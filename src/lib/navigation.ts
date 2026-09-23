@@ -6,11 +6,13 @@ import {
   Waypoints,
   GitCompareArrows,
   FileStack,
+  UploadCloud,
 } from "lucide-react";
 
 export type SectionId =
   | "overview"
   | "timeline"
+  | "ingestion"
   | "evidence"
   | "hypotheses"
   | "delta"
@@ -39,6 +41,13 @@ export const dashboardSections: DashboardSection[] = [
     description: "Chronological clinical event stream",
     icon: Activity,
     phase: 3,
+  },
+  {
+    id: "ingestion",
+    label: "Ingest record",
+    description: "Add a synthetic EHR document to the patient's event store",
+    icon: UploadCloud,
+    phase: 7,
   },
   {
     id: "evidence",

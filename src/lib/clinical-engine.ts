@@ -98,13 +98,13 @@ export function unresolvedSignals(tickIndex: number): { count: number; worst: Se
  * Synapse State Index — a synthetic, non-clinically-validated composite of
  * current vital stability. Not a diagnostic score.
  */
-export function computeSynapseIndex(tickIndex: number): SynapseIndexResult {
+export function computeSynapseIndex(tickIndex: number, events: ClinicalEvent[] = eventsUpTo(tickIndex)): SynapseIndexResult {
   const hemodynamics = Math.round(
     (componentScore("heartRate", tickIndex) + componentScore("map", tickIndex)) / 2
   );
   const oxygenation = componentScore("spo2", tickIndex);
   const laboratoryStability = componentScore("potassium", tickIndex);
-  const recentEvents = eventsUpTo(tickIndex).some((e) => e.severity === "warning" || e.severity === "critical")
+  const recentEvents = events.some((e) => e.severity === "warning" || e.severity === "critical")
     ? 65
     : 95;
 
