@@ -66,3 +66,14 @@ export interface SynapseIndexResult {
   level: SeverityLevel;
   components: SynapseIndexComponent[];
 }
+
+export interface ClinicalHypothesis {
+  id: string;
+  title: string;
+  /** Synthetic, non-clinically-validated confidence — never a real diagnostic probability. */
+  confidence: number; // 0-100
+  supportingEvidence: string[];
+  contradictingEvidence: string[];
+  missingInformation: string[];
+  temporalRelationships: string[];
+}
