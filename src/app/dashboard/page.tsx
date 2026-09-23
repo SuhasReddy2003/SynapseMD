@@ -8,6 +8,7 @@ import { PatientHeader } from "@/components/dashboard/PatientHeader";
 import { StabilityIndex } from "@/components/dashboard/StabilityIndex";
 import { VitalTrends } from "@/components/dashboard/VitalTrends";
 import { Timeline } from "@/components/dashboard/Timeline";
+import { EvidenceGraph } from "@/components/dashboard/EvidenceGraph";
 import { PatientProvider } from "@/components/patient/PatientContext";
 import { dashboardSections, type SectionId } from "@/lib/navigation";
 
@@ -34,6 +35,10 @@ function DashboardShell() {
           ) : active === "timeline" ? (
             <div className="h-full">
               <Timeline />
+            </div>
+          ) : active === "evidence" ? (
+            <div className="h-full">
+              <EvidenceGraph />
             </div>
           ) : (
             <div className="panel h-full">

@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { usePatient } from "@/components/patient/PatientContext";
 import { eventTypeDisplayLabel, eventTypeIcon } from "@/components/dashboard/eventMeta";
-import { ReasoningDrawer } from "@/components/dashboard/ReasoningDrawer";
+import { ReasoningDrawer, type DrawerContent } from "@/components/dashboard/ReasoningDrawer";
 import { SeverityDot } from "@/components/ui/Severity";
+import { reasoningProvider } from "@/lib/reasoning-engine";
 import type { ClinicalEvent } from "@/lib/types";
 
 function formatTime(iso: string): string {
@@ -15,9 +16,24 @@ function formatTime(iso: string): string {
   });
 }
 
+function toDrawerContent(event: ClinicalEvent, context: ClinicalEvent[]): DrawerContent {
+  return {
+    id: event.id,
+    icon: eventTypeIcon[event.type],
+    title: event.title,
+    typeLabel: eventTypeDisplayLabel[event.type],
+    timeLabel: formatTime(event.timestamp),
+    severity: event.severity,
+    description: event.description,
+    sourceText: event.sourceText,
+    highlight: event.highlight,
+    steps: reasoningProvider.explainEvent(event, context),
+  };
+}
+
 export function Timeline() {
   const { events } = usePatient();
-  const [selected, setSelected] = useState<ClinicalEvent | null>(null);
+  const [selected, setSelected] = useState<DrawerContent | null>(null);
 
   // Most recent first — a shift nurse cares about what just happened.
   const ordered = [...events].reverse();
@@ -37,7 +53,7 @@ export function Timeline() {
           return (
             <li key={event.id}>
               <button
-                onClick={() => setSelected(event)}
+                onClick={() => setSelected(toDrawerContent(event, events))}
                 className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors duration-150 ease-product hover:bg-base-200"
               >
                 <span className="tabular mt-0.5 w-12 shrink-0 text-xs text-ink-tertiary">
@@ -61,7 +77,7 @@ export function Timeline() {
         })}
       </ol>
 
-      <ReasoningDrawer event={selected} context={events} onClose={() => setSelected(null)} />
+      <ReasoningDrawer content={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }
