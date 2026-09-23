@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { usePatient } from "@/components/patient/PatientContext";
+import { useCommandState } from "@/components/dashboard/CommandContext";
+import { X } from "lucide-react";
 import { eventTypeDisplayLabel, eventTypeIcon } from "@/components/dashboard/eventMeta";
 import { ReasoningDrawer, type DrawerContent } from "@/components/dashboard/ReasoningDrawer";
 import { SeverityDot } from "@/components/ui/Severity";
@@ -33,21 +35,39 @@ function toDrawerContent(event: ClinicalEvent, context: ClinicalEvent[]): Drawer
 
 export function Timeline() {
   const { events } = usePatient();
+  const { timelineFilter, setTimelineFilter } = useCommandState();
   const [selected, setSelected] = useState<DrawerContent | null>(null);
 
   // Most recent first — a shift nurse cares about what just happened.
-  const ordered = [...events].reverse();
+  const filtered = timelineFilter ? events.filter((e) => e.type === timelineFilter) : events;
+  const ordered = [...filtered].reverse();
 
   return (
     <div className="panel flex h-full flex-col">
       <div className="panel-header shrink-0">
         <div>
           <p className="text-sm font-medium text-ink-primary">Clinical timeline</p>
-          <p className="text-[11px] text-ink-tertiary">{events.length} events recorded so far</p>
+          <p className="text-[11px] text-ink-tertiary">
+            {ordered.length} of {events.length} events{timelineFilter ? ` · filtered to ${eventTypeDisplayLabel[timelineFilter].toLowerCase()}` : ""}
+          </p>
         </div>
+        {timelineFilter && (
+          <button
+            onClick={() => setTimelineFilter(null)}
+            className="flex items-center gap-1.5 rounded-full border border-base-400 bg-base-200 px-2.5 py-1 text-xs text-ink-tertiary transition-colors duration-150 ease-product hover:border-base-500 hover:text-ink-primary"
+          >
+            {eventTypeDisplayLabel[timelineFilter]}
+            <X className="h-3 w-3" />
+          </button>
+        )}
       </div>
 
-      <ol className="flex-1 divide-y divide-base-400 overflow-auto">
+      {ordered.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center text-sm text-ink-tertiary">
+          No events of this type recorded yet.
+        </div>
+      ) : (
+        <ol className="flex-1 divide-y divide-base-400 overflow-auto">
         {ordered.map((event) => {
           const Icon = eventTypeIcon[event.type];
           return (
@@ -76,6 +96,7 @@ export function Timeline() {
           );
         })}
       </ol>
+      )}
 
       <ReasoningDrawer content={selected} onClose={() => setSelected(null)} />
     </div>

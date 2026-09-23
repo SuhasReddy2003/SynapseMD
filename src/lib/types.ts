@@ -78,6 +78,19 @@ export interface ClinicalHypothesis {
   temporalRelationships: string[];
 }
 
+export interface SBARSection {
+  id: "situation" | "background" | "assessment" | "recommendation";
+  label: string;
+  content: string;
+  /** Real events this section's content is grounded in — the "reveal evidence" affordance. */
+  evidenceEvents: ClinicalEvent[];
+}
+
+export interface SBARReport {
+  generatedAtTimestamp: string;
+  sections: SBARSection[];
+}
+
 export interface VitalDeltaEntry {
   kind: VitalKind;
   label: string;

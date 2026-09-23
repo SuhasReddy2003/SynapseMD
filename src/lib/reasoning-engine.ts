@@ -1,5 +1,7 @@
 import { latestObservation, nearestEvent, seriesUpTo, severityForVital } from "@/lib/clinical-engine";
-import type { ClinicalEvent, ClinicalEventType, ClinicalHypothesis } from "@/lib/types";
+import { worstVitalKind } from "@/lib/evidence-engine";
+import { patient, vitalDefinitions } from "@/lib/mock-data";
+import type { ClinicalEvent, ClinicalEventType, ClinicalHypothesis, SBARReport, SBARSection } from "@/lib/types";
 
 export interface ReasoningStep {
   id: string;
@@ -31,6 +33,7 @@ function formatTime(iso: string): string {
 export interface ReasoningProvider {
   explainEvent(event: ClinicalEvent, context: ClinicalEvent[]): ReasoningStep[];
   generateHypotheses(tickIndex: number, events: ClinicalEvent[]): ClinicalHypothesis[];
+  generateSBAR(tickIndex: number, events: ClinicalEvent[]): SBARReport;
 }
 
 class LocalReasoningProvider implements ReasoningProvider {
@@ -169,6 +172,55 @@ class LocalReasoningProvider implements ReasoningProvider {
     ];
 
     return hypotheses.sort((a, b) => b.confidence - a.confidence);
+  }
+
+  generateSBAR(tickIndex: number, events: ClinicalEvent[]): SBARReport {
+    const kind = worstVitalKind(tickIndex);
+    const def = vitalDefinitions[kind];
+    const current = latestObservation(kind, tickIndex);
+    const level = severityForVital(kind, current.value);
+    const unresolvedCount = (["heartRate", "spo2", "map", "temperature", "potassium"] as const).filter(
+      (k) => severityForVital(k, latestObservation(k, tickIndex).value) !== "normal"
+    ).length;
+
+    const medEvent = events.find((e) => e.id === "evt-lisinopril-0400");
+    const bmpEvent = events.find((e) => e.id === "evt-bmp-0100");
+    const closureEvent = events.find((e) => e.id === "evt-closure-0000");
+    const topHypothesis = this.generateHypotheses(tickIndex, events)[0]!;
+
+    const levelPhrase = level === "critical" ? "a critical" : level === "warning" ? "a warning-level" : "a stable";
+
+    const sections: SBARSection[] = [
+      {
+        id: "situation",
+        label: "Situation",
+        content: `${patient.name}, ${patient.age}, ${patient.encounterLabel}. Currently in ${levelPhrase} state with ${unresolvedCount} unresolved signal${unresolvedCount === 1 ? "" : "s"}; most notable is ${def.label.toLowerCase()} at ${current.value.toFixed(def.decimals)} ${def.unit}.`,
+        evidenceEvents: [],
+      },
+      {
+        id: "background",
+        label: "Background",
+        content: `${closureEvent ? closureEvent.description + " " : ""}${medEvent ? `${medEvent.title} at ${formatTime(medEvent.timestamp)} per post-CABG titration protocol. ` : ""}${bmpEvent ? `${bmpEvent.title} at ${formatTime(bmpEvent.timestamp)}.` : ""}`.trim(),
+        evidenceEvents: [closureEvent, medEvent, bmpEvent].filter((e): e is ClinicalEvent => !!e),
+      },
+      {
+        id: "assessment",
+        label: "Assessment",
+        content: `${def.label} trend is most consistent with a ${topHypothesis.title.toLowerCase()} (${topHypothesis.confidence}% synthetic confidence), though alternative explanations have not been excluded. This is a record-level pattern generated for demonstration purposes, not a diagnosis.`,
+        evidenceEvents: medEvent ? [medEvent] : [],
+      },
+      {
+        id: "recommendation",
+        label: "Recommendation",
+        content: `Continue ${def.label.toLowerCase()} monitoring and reassess after the next recorded value. Escalate to clinical staff to confirm this synthetic analysis before acting on it.`,
+        evidenceEvents: [],
+      },
+    ];
+
+    return {
+      generatedAtTimestamp: current.timestamp,
+      sections,
+    };
   }
 }
 

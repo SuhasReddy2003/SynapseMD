@@ -2,15 +2,12 @@
 
 import clsx from "clsx";
 import Link from "next/link";
-import { dashboardSections, type SectionId } from "@/lib/navigation";
+import { dashboardSections } from "@/lib/navigation";
+import { useCommandState } from "@/components/dashboard/CommandContext";
 
-export function Sidebar({
-  active,
-  onSelect,
-}: {
-  active: SectionId;
-  onSelect: (id: SectionId) => void;
-}) {
+export function Sidebar() {
+  const { activeSection, setActiveSection, setSignalsOnly, setFocusVital } = useCommandState();
+
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-base-400 bg-base-100">
       <div className="flex h-14 items-center border-b border-base-400 px-5">
@@ -21,12 +18,16 @@ export function Sidebar({
 
       <nav className="flex-1 space-y-0.5 px-3 py-4">
         {dashboardSections.map((section) => {
-          const isActive = section.id === active;
+          const isActive = section.id === activeSection;
           const Icon = section.icon;
           return (
             <button
               key={section.id}
-              onClick={() => onSelect(section.id)}
+              onClick={() => {
+                setActiveSection(section.id);
+                setSignalsOnly(false);
+                setFocusVital(null);
+              }}
               aria-current={isActive ? "page" : undefined}
               className={clsx(
                 "flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors duration-150 ease-product",

@@ -41,7 +41,7 @@ function formatTime(iso: string): string {
 const severityRank: Record<SeverityLevel, number> = { critical: 2, warning: 1, normal: 0, neutral: 0 };
 
 /** The vital currently furthest from normal — what the evidence graph centers on. */
-function worstVitalKind(tickIndex: number): VitalKind {
+export function worstVitalKind(tickIndex: number): VitalKind {
   const kinds: VitalKind[] = ["potassium", "map", "heartRate", "spo2", "temperature"];
   return kinds.reduce((worst, kind) => {
     const level = severityForVital(kind, latestObservation(kind, tickIndex).value);
