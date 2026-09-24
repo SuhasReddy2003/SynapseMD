@@ -13,6 +13,8 @@ interface CommandContextValue extends CommandActions {
   sbarAutoGenerateToken: number;
   paletteOpen: boolean;
   setPaletteOpen: (open: boolean) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (open: boolean) => void;
 }
 
 const CommandContext = createContext<CommandContextValue | null>(null);
@@ -30,6 +32,7 @@ export function CommandProvider({
   const [focusVital, setFocusVital] = useState<VitalKind | null>(null);
   const [sbarAutoGenerateToken, setSbarAutoGenerateToken] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const value = useMemo<CommandContextValue>(
     () => ({
@@ -45,8 +48,10 @@ export function CommandProvider({
       bumpSbarAutoGenerate: () => setSbarAutoGenerateToken((t) => t + 1),
       paletteOpen,
       setPaletteOpen,
+      sidebarOpen,
+      setSidebarOpen,
     }),
-    [activeSection, timelineFilter, signalsOnly, focusVital, sbarAutoGenerateToken, paletteOpen]
+    [activeSection, timelineFilter, signalsOnly, focusVital, sbarAutoGenerateToken, paletteOpen, sidebarOpen]
   );
 
   return <CommandContext.Provider value={value}>{children}</CommandContext.Provider>;
