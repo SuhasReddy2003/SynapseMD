@@ -1,7 +1,18 @@
-import { latestObservation, nearestEvent, seriesUpTo, severityForVital } from "@/lib/clinical-engine";
+import { latestObservation, nearestEvent, nearestEventOfType, seriesUpTo, severityForVital } from "@/lib/clinical-engine";
 import { worstVitalKind } from "@/lib/evidence-engine";
-import { patient, vitalDefinitions } from "@/lib/mock-data";
-import type { ClinicalEvent, ClinicalEventType, ClinicalHypothesis, SBARReport, SBARSection } from "@/lib/types";
+import { patient, vitalDefinitions, vitalSeries } from "@/lib/mock-data";
+import type {
+  ClinicalEvent,
+  ClinicalEventType,
+  ClinicalHypothesis,
+  Patient,
+  SBARReport,
+  SBARSection,
+  VitalKind,
+  VitalObservation,
+} from "@/lib/types";
+
+type SeriesMap = Record<VitalKind, VitalObservation[]>;
 
 export interface ReasoningStep {
   id: string;
@@ -26,14 +37,254 @@ function formatTime(iso: string): string {
   });
 }
 
+const clamp = (n: number) => Math.round(Math.min(95, Math.max(4, n)));
+
+interface HypothesisContext {
+  events: ClinicalEvent[];
+  current: VitalObservation;
+  baseline: VitalObservation;
+  /** Positive means "moving toward abnormal" regardless of which direction that is for this vital. */ 
+  directionalDelta: number;
+}
+
+// Potassium — Patient A's narrative: does the medication explain the rise?
+function hypothesesForPotassium(ctx: HypothesisContext): ClinicalHypothesis[] {
+  const { events, current, baseline, directionalDelta: delta } = ctx;
+  const medEvent = nearestEventOfType("medication", current.timestamp, events);
+  const labEvent = nearestEventOfType("lab", baseline.timestamp, events);
+  const repeatLabExists = events.filter((e) => e.type === "lab").length >= 2;
+  const level = severityForVital("potassium", current.value);
+
+  return [
+    {
+      id: "medication",
+      title: "Medication-related signal",
+      confidence: clamp(medEvent ? 45 + delta * 65 : 12),
+      supportingEvidence: medEvent
+        ? [
+            `${medEvent.title} at ${formatTime(medEvent.timestamp)}, preceding the rise in potassium.`,
+            `Potassium moved from ${baseline.value.toFixed(1)} to ${current.value.toFixed(1)} mmol/L after ${medEvent.title.toLowerCase()} — a recognized pharmacologic association.`,
+          ]
+        : [],
+      contradictingEvidence: level === "normal" ? ["Potassium is currently within the normal range."] : [],
+      missingInformation: [
+        "No prior potassium response documented for this patient on this medication class.",
+        "No renal-clearance trend available to confirm the mechanism.",
+      ],
+      temporalRelationships: medEvent
+        ? [`${medEvent.title} at ${formatTime(medEvent.timestamp)}, before the current reading.`]
+        : ["No medication event found in the visible window."],
+    },
+    {
+      id: "renal",
+      title: "Renal-function signal",
+      confidence: clamp(35 - delta * 8),
+      supportingEvidence: ["Patient is post-operative, a setting where transient renal changes can occur."],
+      contradictingEvidence: labEvent ? [`${labEvent.title}: no acute renal abnormality documented.`] : [],
+      missingInformation: [
+        "No repeat creatinine drawn in this window to confirm a renal trend.",
+        "No urine output record available.",
+      ],
+      temporalRelationships: labEvent
+        ? [`${labEvent.title} at ${formatTime(labEvent.timestamp)}, before the potassium rise became apparent.`]
+        : [],
+    },
+    {
+      id: "measurement",
+      title: "Measurement / sample issue",
+      confidence: clamp(repeatLabExists ? 6 : 30 - delta * 15),
+      supportingEvidence: repeatLabExists
+        ? []
+        : ["Elevated reading has not yet been confirmed by a repeat draw in this window."],
+      contradictingEvidence: repeatLabExists
+        ? ["A repeat lab draw was ordered specifically to confirm the trend, which argues against a one-off measurement error."]
+        : [],
+      missingInformation: repeatLabExists ? [] : ["Repeat draw result not yet available in this window."],
+      temporalRelationships: [],
+    },
+    {
+      id: "recent-event",
+      title: "Recent clinical event",
+      confidence: clamp(18 + delta * 12),
+      supportingEvidence: ["The post-operative period is commonly associated with fluid and electrolyte shifts."],
+      contradictingEvidence: ["No documented bleeding, transfusion, or arrhythmia directly implicating this mechanism."],
+      missingInformation: ["No fluid-balance or transfusion record available in this window."],
+      temporalRelationships: ["Encounter began before the observed window; no single triggering event identified."],
+    },
+  ];
+}
+
+// SpO2 — Patient B's narrative: infectious process vs. mechanical vs. device issue.
+function hypothesesForSpo2(ctx: HypothesisContext): ClinicalHypothesis[] {
+  const { events, current, directionalDelta: delta } = ctx;
+  const radiologyEvent = nearestEventOfType("radiology", current.timestamp, events);
+  const noteEvent = nearestEventOfType("note", current.timestamp, events);
+  const confirmingStudyExists = events.filter((e) => e.type === "procedure").length >= 2;
+
+  return [
+    {
+      id: "infectious",
+      title: "Infectious / inflammatory process",
+      confidence: clamp(radiologyEvent ? 50 + delta * 60 : 20),
+      supportingEvidence: radiologyEvent
+        ? [
+            `${radiologyEvent.title} at ${formatTime(radiologyEvent.timestamp)} shows findings consistent with an infectious process.`,
+            `SpO2 has trended downward alongside imaging changes — a pattern consistent with worsening pneumonia.`,
+          ]
+        : [],
+      contradictingEvidence: [],
+      missingInformation: ["No repeat culture result available to confirm organism and response to therapy."],
+      temporalRelationships: radiologyEvent
+        ? [`${radiologyEvent.title} at ${formatTime(radiologyEvent.timestamp)}, preceding the current reading.`]
+        : [],
+    },
+    {
+      id: "mechanical",
+      title: "Airway / secretion burden",
+      confidence: clamp(noteEvent ? 30 + delta * 30 : 18),
+      supportingEvidence: noteEvent ? [`${noteEvent.title}: ${noteEvent.description}`] : [],
+      contradictingEvidence: [],
+      missingInformation: ["No spirometry or suction-frequency record available in this window."],
+      temporalRelationships: noteEvent ? [`${noteEvent.title} at ${formatTime(noteEvent.timestamp)}.`] : [],
+    },
+    {
+      id: "device",
+      title: "Device or sensor issue",
+      confidence: clamp(confirmingStudyExists ? 6 : 25 - delta * 10),
+      supportingEvidence: confirmingStudyExists ? [] : ["Single desaturation reading not yet cross-checked against an arterial sample."],
+      contradictingEvidence: confirmingStudyExists
+        ? ["An arterial blood gas was drawn to directly verify oxygenation, which argues against a sensor artifact."]
+        : [],
+      missingInformation: confirmingStudyExists ? [] : ["Arterial blood gas result not yet available in this window."],
+      temporalRelationships: [],
+    },
+    {
+      id: "recent-event",
+      title: "Recent clinical event",
+      confidence: clamp(15 + delta * 15),
+      supportingEvidence: ["Hospital day 3 of a pneumonia admission is a period where clinical status can still evolve."],
+      contradictingEvidence: [],
+      missingInformation: ["No fluid-balance record available in this window."],
+      temporalRelationships: ["Encounter began before the observed window; no single triggering event identified."],
+    },
+  ];
+}
+
+// MAP — Patient C's narrative: volume status vs. medication vs. cardiac cause.
+function hypothesesForMap(ctx: HypothesisContext): ClinicalHypothesis[] {
+  const { events, current, directionalDelta: delta } = ctx;
+  const fluidEvent = nearestEventOfType("medication", current.timestamp, events);
+  const labEvent = nearestEventOfType("lab", current.timestamp, events);
+  const repeatLabExists = events.filter((e) => e.type === "lab").length >= 2;
+
+  return [
+    {
+      id: "volume",
+      title: "Volume / fluid status",
+      confidence: clamp(fluidEvent ? 48 + delta * 55 : 20),
+      supportingEvidence: fluidEvent
+        ? [`${fluidEvent.title} at ${formatTime(fluidEvent.timestamp)} — consistent with ongoing third-spacing losses.`]
+        : [],
+      contradictingEvidence: [],
+      missingInformation: ["No central venous pressure or formal fluid-balance total available in this window."],
+      temporalRelationships: fluidEvent
+        ? [`${fluidEvent.title} at ${formatTime(fluidEvent.timestamp)}, before the current reading.`]
+        : [],
+    },
+    {
+      id: "electrolyte",
+      title: "Electrolyte-mediated signal",
+      confidence: clamp(labEvent ? 38 + delta * 30 : 18),
+      supportingEvidence: labEvent ? [`${labEvent.title}: ${labEvent.description}`] : [],
+      contradictingEvidence: [],
+      missingInformation: ["No repeat electrolyte result confirmed after the most recent repletion."],
+      temporalRelationships: labEvent ? [`${labEvent.title} at ${formatTime(labEvent.timestamp)}.`] : [],
+    },
+    {
+      id: "measurement",
+      title: "Measurement issue",
+      confidence: clamp(repeatLabExists ? 6 : 22 - delta * 10),
+      supportingEvidence: repeatLabExists ? [] : ["Reading has not yet been cross-checked against a repeat study."],
+      contradictingEvidence: repeatLabExists
+        ? ["Repeat lab work was drawn specifically to reassess this trend, which argues against a one-off artifact."]
+        : [],
+      missingInformation: repeatLabExists ? [] : ["Repeat confirmation not yet available in this window."],
+      temporalRelationships: [],
+    },
+    {
+      id: "recent-event",
+      title: "Recent clinical event",
+      confidence: clamp(16 + delta * 12),
+      supportingEvidence: ["The post-operative period is commonly associated with hemodynamic shifts."],
+      contradictingEvidence: [],
+      missingInformation: ["No formal hemodynamic monitoring trend available in this window."],
+      temporalRelationships: ["Encounter began before the observed window; no single triggering event identified."],
+    },
+  ];
+}
+
+// Fallback for a vital kind without a hand-authored narrative (heartRate, temperature).
+function hypothesesGeneric(def: { label: string }, ctx: HypothesisContext): ClinicalHypothesis[] {
+  const { events, current, directionalDelta: delta } = ctx;
+  const medEvent = nearestEventOfType("medication", current.timestamp, events);
+
+  return [
+    {
+      id: "medication",
+      title: "Medication-related signal",
+      confidence: clamp(medEvent ? 40 + delta * 50 : 15),
+      supportingEvidence: medEvent ? [`${medEvent.title} at ${formatTime(medEvent.timestamp)}.`] : [],
+      contradictingEvidence: [],
+      missingInformation: [`No prior ${def.label.toLowerCase()} response documented for this patient.`],
+      temporalRelationships: medEvent ? [`${medEvent.title} at ${formatTime(medEvent.timestamp)}.`] : [],
+    },
+    {
+      id: "infectious",
+      title: "Infectious / inflammatory process",
+      confidence: clamp(20 + delta * 30),
+      supportingEvidence: [],
+      contradictingEvidence: [],
+      missingInformation: ["No culture or inflammatory marker result available in this window."],
+      temporalRelationships: [],
+    },
+    {
+      id: "measurement",
+      title: "Measurement issue",
+      confidence: clamp(20 - delta * 10),
+      supportingEvidence: [],
+      contradictingEvidence: [],
+      missingInformation: ["Repeat confirmation not yet available in this window."],
+      temporalRelationships: [],
+    },
+    {
+      id: "recent-event",
+      title: "Recent clinical event",
+      confidence: clamp(15 + delta * 10),
+      supportingEvidence: ["This encounter is a period where clinical status can still evolve."],
+      contradictingEvidence: [],
+      missingInformation: ["No additional context available in this window."],
+      temporalRelationships: [],
+    },
+  ];
+}
+
+/** For a given worst vital kind, "toward abnormal" is up for some vitals and down for others. */
+const worsensUpward: Record<VitalKind, boolean> = {
+  potassium: true,
+  heartRate: true,
+  temperature: true,
+  spo2: false,
+  map: false,
+};
+
 /**
  * The abstraction the UI talks to. It should never know whether reasoning
  * comes from deterministic local logic or a future LLM/medical-model backend.
  */
 export interface ReasoningProvider {
   explainEvent(event: ClinicalEvent, context: ClinicalEvent[]): ReasoningStep[];
-  generateHypotheses(tickIndex: number, events: ClinicalEvent[]): ClinicalHypothesis[];
-  generateSBAR(tickIndex: number, events: ClinicalEvent[]): SBARReport;
+  generateHypotheses(tickIndex: number, events: ClinicalEvent[], series?: SeriesMap): ClinicalHypothesis[];
+  generateSBAR(tickIndex: number, events: ClinicalEvent[], series?: SeriesMap, patientMeta?: Patient): SBARReport;
 }
 
 class LocalReasoningProvider implements ReasoningProvider {
@@ -92,116 +343,70 @@ class LocalReasoningProvider implements ReasoningProvider {
     ];
   }
 
-  generateHypotheses(tickIndex: number, events: ClinicalEvent[]): ClinicalHypothesis[] {
-    const potassium = latestObservation("potassium", tickIndex);
-    const baseline = seriesUpTo("potassium", tickIndex)[0]!;
-    const level = severityForVital("potassium", potassium.value);
-    const delta = Number((potassium.value - baseline.value).toFixed(1));
+  generateHypotheses(tickIndex: number, events: ClinicalEvent[], series: SeriesMap = vitalSeries): ClinicalHypothesis[] {
+    const kind = worstVitalKind(tickIndex, series);
+    const def = vitalDefinitions[kind];
+    const current = latestObservation(kind, tickIndex, series);
+    const baseline = seriesUpTo(kind, tickIndex, series)[0]!;
+    const rawDelta = Number((current.value - baseline.value).toFixed(2));
+    const directionalDelta = worsensUpward[kind] ? rawDelta : -rawDelta;
 
-    const medEvent = events.find((e) => e.id === "evt-lisinopril-0400");
-    const bmpEvent = events.find((e) => e.id === "evt-bmp-0100");
-    const repeatDrawEvent = events.find((e) => e.id === "evt-potassium-flag-1000");
+    const ctx: HypothesisContext = { events, current, baseline, directionalDelta };
 
-    const clamp = (n: number) => Math.round(Math.min(95, Math.max(4, n)));
-
-    const medicationConfidence = clamp(medEvent ? 45 + delta * 65 : 12);
-    const renalConfidence = clamp(35 - delta * 8);
-    const measurementConfidence = clamp(repeatDrawEvent ? 6 : 30 - delta * 15);
-    const recentEventConfidence = clamp(18 + delta * 12);
-
-    const hypotheses: ClinicalHypothesis[] = [
-      {
-        id: "medication",
-        title: "Medication-related signal",
-        confidence: medicationConfidence,
-        supportingEvidence: medEvent
-          ? [
-              `${medEvent.title} at ${formatTime(medEvent.timestamp)}, preceding the rise in potassium.`,
-              `Potassium moved from ${baseline.value.toFixed(1)} to ${potassium.value.toFixed(1)} mmol/L after an ACE inhibitor was given — a recognized pharmacologic association.`,
-            ]
-          : [],
-        contradictingEvidence: level === "normal" ? ["Potassium is currently within the normal range."] : [],
-        missingInformation: [
-          "No prior potassium response documented for this patient on ACE inhibitors.",
-          "No renal-clearance trend available to confirm the mechanism.",
-        ],
-        temporalRelationships: medEvent
-          ? [`${medEvent.title} at ${formatTime(medEvent.timestamp)}, before the current reading.`]
-          : ["No medication event found in the visible window."],
-      },
-      {
-        id: "renal",
-        title: "Renal-function signal",
-        confidence: renalConfidence,
-        supportingEvidence: ["Patient is post-operative, a setting where transient renal changes can occur."],
-        contradictingEvidence: bmpEvent
-          ? [`${bmpEvent.title}: creatinine 1.1 mg/dL, stable from baseline.`]
-          : [],
-        missingInformation: [
-          "No repeat creatinine drawn in this window to confirm a renal trend.",
-          "No urine output record available.",
-        ],
-        temporalRelationships: bmpEvent
-          ? [`${bmpEvent.title} at ${formatTime(bmpEvent.timestamp)}, before the potassium rise became apparent.`]
-          : [],
-      },
-      {
-        id: "measurement",
-        title: "Measurement / sample issue",
-        confidence: measurementConfidence,
-        supportingEvidence: repeatDrawEvent
-          ? []
-          : ["Elevated reading has not yet been confirmed by a repeat draw in this window."],
-        contradictingEvidence: repeatDrawEvent
-          ? [`${repeatDrawEvent.title} was ordered specifically to confirm the trend, which argues against a one-off measurement error.`]
-          : [],
-        missingInformation: repeatDrawEvent ? [] : ["Repeat draw result not yet available in this window."],
-        temporalRelationships: repeatDrawEvent
-          ? [`${repeatDrawEvent.title} at ${formatTime(repeatDrawEvent.timestamp)}.`]
-          : [],
-      },
-      {
-        id: "recent-event",
-        title: "Recent clinical event",
-        confidence: recentEventConfidence,
-        supportingEvidence: ["Day 2 post-CABG is a period commonly associated with fluid and electrolyte shifts."],
-        contradictingEvidence: ["No documented bleeding, transfusion, or arrhythmia directly implicating this mechanism."],
-        missingInformation: ["No fluid-balance or transfusion record available in this window."],
-        temporalRelationships: ["Encounter began before the observed window; no single triggering event identified."],
-      },
-    ];
+    const hypotheses =
+      kind === "potassium"
+        ? hypothesesForPotassium(ctx)
+        : kind === "spo2"
+          ? hypothesesForSpo2(ctx)
+          : kind === "map"
+            ? hypothesesForMap(ctx)
+            : hypothesesGeneric(def, ctx);
 
     return hypotheses.sort((a, b) => b.confidence - a.confidence);
   }
 
-  generateSBAR(tickIndex: number, events: ClinicalEvent[]): SBARReport {
-    const kind = worstVitalKind(tickIndex);
+  generateSBAR(
+    tickIndex: number,
+    events: ClinicalEvent[],
+    series: SeriesMap = vitalSeries,
+    patientMeta: Patient = patient
+  ): SBARReport {
+    const kind = worstVitalKind(tickIndex, series);
     const def = vitalDefinitions[kind];
-    const current = latestObservation(kind, tickIndex);
+    const current = latestObservation(kind, tickIndex, series);
     const level = severityForVital(kind, current.value);
     const unresolvedCount = (["heartRate", "spo2", "map", "temperature", "potassium"] as const).filter(
-      (k) => severityForVital(k, latestObservation(k, tickIndex).value) !== "normal"
+      (k) => severityForVital(k, latestObservation(k, tickIndex, series).value) !== "normal"
     ).length;
 
-    const medEvent = events.find((e) => e.id === "evt-lisinopril-0400");
-    const bmpEvent = events.find((e) => e.id === "evt-bmp-0100");
-    const closureEvent = events.find((e) => e.id === "evt-closure-0000");
-    const topHypothesis = this.generateHypotheses(tickIndex, events)[0]!;
+    const earliestEvent = [...events].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )[0];
+    const medEvent = nearestEventOfType("medication", current.timestamp, events);
+    const labEvent = nearestEventOfType("lab", current.timestamp, events);
+    const topHypothesis = this.generateHypotheses(tickIndex, events, series)[0]!;
 
     const levelPhrase = level === "critical" ? "a critical" : level === "warning" ? "a warning-level" : "a stable";
+
+    const backgroundParts = [
+      `${patientMeta.encounterLabel}.`,
+      earliestEvent ? `${earliestEvent.description}` : "",
+      medEvent ? `${medEvent.title} at ${formatTime(medEvent.timestamp)}.` : "",
+      labEvent && labEvent.id !== medEvent?.id ? `${labEvent.title} at ${formatTime(labEvent.timestamp)}.` : "",
+    ].filter(Boolean);
 
     const sections: SBARSection[] = [
       {
         id: "situation",
         label: "Situation",
-        content: `${patient.name}, ${patient.age}, ${patient.encounterLabel}. Currently in ${levelPhrase} state with ${unresolvedCount} unresolved signal${unresolvedCount === 1 ? "" : "s"}; most notable is ${def.label.toLowerCase()} at ${current.value.toFixed(def.decimals)} ${def.unit}.`,
+        content: `${patientMeta.name}, ${patientMeta.age}, ${patientMeta.encounterLabel}. Currently in ${levelPhrase} state with ${unresolvedCount} unresolved signal${unresolvedCount === 1 ? "" : "s"}; most notable is ${def.label.toLowerCase()} at ${current.value.toFixed(def.decimals)} ${def.unit}.`,
         evidenceEvents: [],
       },
       {
         id: "background",
         label: "Background",
-        content: `${closureEvent ? closureEvent.description + " " : ""}${medEvent ? `${medEvent.title} at ${formatTime(medEvent.timestamp)} per post-CABG titration protocol. ` : ""}${bmpEvent ? `${bmpEvent.title} at ${formatTime(bmpEvent.timestamp)}.` : ""}`.trim(),
-        evidenceEvents: [closureEvent, medEvent, bmpEvent].filter((e): e is ClinicalEvent => !!e),
+        content: backgroundParts.join(" "),
+        evidenceEvents: [earliestEvent, medEvent, labEvent].filter((e): e is ClinicalEvent => !!e),
       },
       {
         id: "assessment",

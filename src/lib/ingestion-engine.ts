@@ -1,6 +1,8 @@
-import { patient, vitalSeries, POINT_COUNT } from "@/lib/mock-data";
-import type { ClinicalEvent, ClinicalEventType } from "@/lib/types";
+import { POINT_COUNT } from "@/lib/mock-data";
+import type { ClinicalEvent, ClinicalEventType, VitalKind, VitalObservation } from "@/lib/types";
 import type { SeverityLevel } from "@/lib/design-tokens";
+
+type SeriesMap = Record<VitalKind, VitalObservation[]>;
 
 interface IngestionTemplate {
   type: ClinicalEventType;
@@ -60,21 +62,21 @@ export const ingestionStageLabels = [
   "Success",
 ] as const;
 
-function lastRecordedTimestamp(): number {
-  return new Date(vitalSeries.heartRate[POINT_COUNT - 1]!.timestamp).getTime();
+function lastRecordedTimestamp(series: SeriesMap): number {
+  return new Date(series.heartRate[POINT_COUNT - 1]!.timestamp).getTime();
 }
 
 /**
  * Builds the ClinicalEvent a simulated ingestion run produces. Deterministic:
  * the same sequence number always produces the same event and timestamp.
  */
-export function buildIngestedEvent(sequenceNumber: number): ClinicalEvent {
+export function buildIngestedEvent(sequenceNumber: number, patientId: string, series: SeriesMap): ClinicalEvent {
   const template = ingestionTemplates[sequenceNumber % ingestionTemplates.length]!;
-  const timestamp = new Date(lastRecordedTimestamp() + (sequenceNumber + 1) * 15 * 60_000).toISOString();
+  const timestamp = new Date(lastRecordedTimestamp(series) + (sequenceNumber + 1) * 15 * 60_000).toISOString();
 
   return {
-    id: `ingested-${sequenceNumber}`,
-    patientId: patient.id,
+    id: `ingested-${patientId}-${sequenceNumber}`,
+    patientId,
     type: template.type,
     title: template.title,
     description: template.description,

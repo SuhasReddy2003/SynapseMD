@@ -7,16 +7,17 @@ import { unresolvedSignals } from "@/lib/clinical-engine";
 import { SeverityDot } from "@/components/ui/Severity";
 import { Button } from "@/components/ui/Button";
 import { Search } from "lucide-react";
+import { PatientSelector } from "@/components/dashboard/PatientSelector";
 
 export function TopBar() {
-  const { patient, tickIndex } = usePatient();
+  const { patient, tickIndex, dataset } = usePatient();
   const { setPaletteOpen } = useCommandState();
-  const { count, worst } = unresolvedSignals(tickIndex);
+  const { count, worst } = unresolvedSignals(tickIndex, dataset.vitalSeries);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-base-400 bg-base-50/95 px-5 backdrop-blur">
       <div className="flex items-center gap-3">
-        <p className="text-sm font-medium text-ink-primary">{patient.name}</p>
+        <PatientSelector />
         <span className="h-3 w-px bg-base-400" />
         <p className="text-sm text-ink-tertiary">
           {patient.age} · {patient.encounterLabel}

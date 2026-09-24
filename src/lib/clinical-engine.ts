@@ -3,12 +3,15 @@ import { clinicalEvents, vitalDefinitions, vitalSeries } from "@/lib/mock-data";
 import type {
   ClinicalDeltaResult,
   ClinicalEvent,
+  ClinicalEventType,
   MedicationDeltaEntry,
   SynapseIndexResult,
   VitalDeltaEntry,
   VitalKind,
   VitalObservation,
 } from "@/lib/types";
+
+type SeriesMap = Record<VitalKind, VitalObservation[]>;
 
 /** Severity of a single reading, from the vital's defined normal/critical bands. */
 export function severityForVital(kind: VitalKind, value: number): SeverityLevel {
@@ -23,20 +26,26 @@ export function severityForVital(kind: VitalKind, value: number): SeverityLevel 
 /**
  * The series visible "as of" a given tick index — this is what makes telemetry
  * feel live: as the tick advances, more of the deterministic series is revealed.
+ * `series` defaults to the first patient dataset; every caller that is
+ * patient-aware should pass the active patient's series explicitly.
  */
-export function seriesUpTo(kind: VitalKind, tickIndex: number): VitalObservation[] {
-  return vitalSeries[kind].slice(0, tickIndex + 1);
+export function seriesUpTo(kind: VitalKind, tickIndex: number, series: SeriesMap = vitalSeries): VitalObservation[] {
+  return series[kind].slice(0, tickIndex + 1);
 }
 
-export function latestObservation(kind: VitalKind, tickIndex: number): VitalObservation {
-  const series = seriesUpTo(kind, tickIndex);
-  return series[series.length - 1]!;
+export function latestObservation(kind: VitalKind, tickIndex: number, series: SeriesMap = vitalSeries): VitalObservation {
+  const s = seriesUpTo(kind, tickIndex, series);
+  return s[s.length - 1]!;
 }
 
-export function eventsUpTo(tickIndex: number): ClinicalEvent[] {
-  const cutoff = vitalSeries.heartRate[tickIndex]?.timestamp;
-  if (!cutoff) return clinicalEvents;
-  return clinicalEvents.filter((e) => e.timestamp <= cutoff);
+export function eventsUpTo(
+  tickIndex: number,
+  events: ClinicalEvent[] = clinicalEvents,
+  series: SeriesMap = vitalSeries
+): ClinicalEvent[] {
+  const cutoff = series.heartRate[tickIndex]?.timestamp;
+  if (!cutoff) return events;
+  return events.filter((e) => e.timestamp <= cutoff);
 }
 
 /** The clinical event whose timestamp is closest to the given one. */
@@ -53,8 +62,17 @@ export function nearestEvent(
   }, events[0]!);
 }
 
-function componentScore(kind: VitalKind, tickIndex: number): number {
-  const value = latestObservation(kind, tickIndex).value;
+/** Nearest event of a specific type to the given timestamp, if any exist. */
+export function nearestEventOfType(
+  type: ClinicalEventType,
+  timestamp: string,
+  events: ClinicalEvent[]
+): ClinicalEvent | undefined {
+  return nearestEvent(timestamp, events.filter((e) => e.type === type));
+}
+
+function componentScore(kind: VitalKind, tickIndex: number, series: SeriesMap): number {
+  const value = latestObservation(kind, tickIndex, series).value;
   const def = vitalDefinitions[kind];
   const [normalLow, normalHigh] = def.normalRange;
   const [criticalLow, criticalHigh] = def.criticalBeyond;
@@ -80,9 +98,12 @@ function levelForScore(score: number): SeverityLevel {
 const ALL_VITAL_KINDS: VitalKind[] = ["heartRate", "spo2", "map", "temperature", "potassium"];
 
 /** How many of the patient's current vitals are outside the normal band, and how bad the worst one is. */
-export function unresolvedSignals(tickIndex: number): { count: number; worst: SeverityLevel } {
+export function unresolvedSignals(
+  tickIndex: number,
+  series: SeriesMap = vitalSeries
+): { count: number; worst: SeverityLevel } {
   const levels = ALL_VITAL_KINDS.map((kind) => {
-    const obs = latestObservation(kind, tickIndex);
+    const obs = latestObservation(kind, tickIndex, series);
     return severityForVital(kind, obs.value);
   });
   const count = levels.filter((l) => l !== "normal").length;
@@ -98,15 +119,17 @@ export function unresolvedSignals(tickIndex: number): { count: number; worst: Se
  * Synapse State Index — a synthetic, non-clinically-validated composite of
  * current vital stability. Not a diagnostic score.
  */
-export function computeSynapseIndex(tickIndex: number, events: ClinicalEvent[] = eventsUpTo(tickIndex)): SynapseIndexResult {
+export function computeSynapseIndex(
+  tickIndex: number,
+  events: ClinicalEvent[] = eventsUpTo(tickIndex),
+  series: SeriesMap = vitalSeries
+): SynapseIndexResult {
   const hemodynamics = Math.round(
-    (componentScore("heartRate", tickIndex) + componentScore("map", tickIndex)) / 2
+    (componentScore("heartRate", tickIndex, series) + componentScore("map", tickIndex, series)) / 2
   );
-  const oxygenation = componentScore("spo2", tickIndex);
-  const laboratoryStability = componentScore("potassium", tickIndex);
-  const recentEvents = events.some((e) => e.severity === "warning" || e.severity === "critical")
-    ? 65
-    : 95;
+  const oxygenation = componentScore("spo2", tickIndex, series);
+  const laboratoryStability = componentScore("potassium", tickIndex, series);
+  const recentEvents = events.some((e) => e.severity === "warning" || e.severity === "critical") ? 65 : 95;
 
   const score = Math.round(
     hemodynamics * 0.35 + oxygenation * 0.25 + laboratoryStability * 0.3 + recentEvents * 0.1
@@ -130,15 +153,20 @@ const ALL_VITAL_KINDS_DELTA: VitalKind[] = ["heartRate", "spo2", "map", "tempera
  * Compares two points in the patient's revealed record — "What Changed".
  * Both indices must be <= the current tick; the earlier one is always treated as "from".
  */
-export function buildClinicalDelta(indexA: number, indexB: number): ClinicalDeltaResult {
+export function buildClinicalDelta(
+  indexA: number,
+  indexB: number,
+  series: SeriesMap = vitalSeries,
+  events: ClinicalEvent[] = clinicalEvents
+): ClinicalDeltaResult {
   const [fromIndex, toIndex] = indexA <= indexB ? [indexA, indexB] : [indexB, indexA];
-  const fromTimestamp = vitalSeries.heartRate[fromIndex]!.timestamp;
-  const toTimestamp = vitalSeries.heartRate[toIndex]!.timestamp;
+  const fromTimestamp = series.heartRate[fromIndex]!.timestamp;
+  const toTimestamp = series.heartRate[toIndex]!.timestamp;
 
   const vitals: VitalDeltaEntry[] = ALL_VITAL_KINDS_DELTA.map((kind) => {
     const def = vitalDefinitions[kind];
-    const from = latestObservation(kind, fromIndex);
-    const to = latestObservation(kind, toIndex);
+    const from = latestObservation(kind, fromIndex, series);
+    const to = latestObservation(kind, toIndex, series);
     return {
       kind,
       label: def.label,
@@ -152,7 +180,7 @@ export function buildClinicalDelta(indexA: number, indexB: number): ClinicalDelt
     };
   });
 
-  const medications: MedicationDeltaEntry[] = clinicalEvents
+  const medications: MedicationDeltaEntry[] = events
     .filter((e) => e.type === "medication")
     .map((e) => ({
       eventId: e.id,
@@ -166,7 +194,7 @@ export function buildClinicalDelta(indexA: number, indexB: number): ClinicalDelt
     toTimestamp,
     vitals,
     medications,
-    eventCountFrom: eventsUpTo(fromIndex).length,
-    eventCountTo: eventsUpTo(toIndex).length,
+    eventCountFrom: eventsUpTo(fromIndex, events, series).length,
+    eventCountTo: eventsUpTo(toIndex, events, series).length,
   };
 }

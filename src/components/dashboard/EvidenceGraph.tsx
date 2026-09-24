@@ -30,10 +30,13 @@ function iconAndLabel(node: EvidenceNode) {
 }
 
 export function EvidenceGraph() {
-  const { tickIndex, events } = usePatient();
+  const { tickIndex, events, dataset } = usePatient();
   const [selected, setSelected] = useState<DrawerContent | null>(null);
 
-  const graph = useMemo(() => buildEvidenceGraph(tickIndex, events), [tickIndex, events]);
+  const graph = useMemo(
+    () => buildEvidenceGraph(tickIndex, events, dataset.vitalSeries, dataset.patient),
+    [tickIndex, events, dataset]
+  );
 
   function selectNode(node: EvidenceNode) {
     const { icon, typeLabel } = iconAndLabel(node);

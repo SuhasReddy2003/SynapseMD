@@ -118,3 +118,9 @@ export interface ClinicalDeltaResult {
   eventCountFrom: number;
   eventCountTo: number;
 }
+
+export interface PatientDataset {
+  patient: Patient;
+  vitalSeries: Record<VitalKind, VitalObservation[]>;
+  clinicalEvents: ClinicalEvent[];
+}

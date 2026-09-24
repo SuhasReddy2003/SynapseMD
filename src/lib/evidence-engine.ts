@@ -1,7 +1,9 @@
 import type { SeverityLevel } from "@/lib/design-tokens";
 import { latestObservation, seriesUpTo, severityForVital } from "@/lib/clinical-engine";
-import { patient, vitalDefinitions } from "@/lib/mock-data";
-import type { ClinicalEvent, VitalKind } from "@/lib/types";
+import { patient, vitalDefinitions, vitalSeries } from "@/lib/mock-data";
+import type { ClinicalEvent, Patient, VitalKind, VitalObservation } from "@/lib/types";
+
+type SeriesMap = Record<VitalKind, VitalObservation[]>;
 
 export type EvidenceNodeKind = "signal" | "event" | "observation" | "context";
 
@@ -41,11 +43,11 @@ function formatTime(iso: string): string {
 const severityRank: Record<SeverityLevel, number> = { critical: 2, warning: 1, normal: 0, neutral: 0 };
 
 /** The vital currently furthest from normal — what the evidence graph centers on. */
-export function worstVitalKind(tickIndex: number): VitalKind {
+export function worstVitalKind(tickIndex: number, series: SeriesMap = vitalSeries): VitalKind {
   const kinds: VitalKind[] = ["potassium", "map", "heartRate", "spo2", "temperature"];
   return kinds.reduce((worst, kind) => {
-    const level = severityForVital(kind, latestObservation(kind, tickIndex).value);
-    const worstLevel = severityForVital(worst, latestObservation(worst, tickIndex).value);
+    const level = severityForVital(kind, latestObservation(kind, tickIndex, series).value);
+    const worstLevel = severityForVital(worst, latestObservation(worst, tickIndex, series).value);
     return severityRank[level] > severityRank[worstLevel] ? kind : worst;
   }, kinds[0]!);
 }
@@ -55,12 +57,17 @@ export function worstVitalKind(tickIndex: number): VitalKind {
  * same "every claim traces to a record" requirement the reasoning drawer
  * satisfies for individual events, applied to a signal as a whole.
  */
-export function buildEvidenceGraph(tickIndex: number, events: ClinicalEvent[]): EvidenceGraph {
-  const kind = worstVitalKind(tickIndex);
+export function buildEvidenceGraph(
+  tickIndex: number,
+  events: ClinicalEvent[],
+  series: SeriesMap = vitalSeries,
+  patientMeta: Patient = patient
+): EvidenceGraph {
+  const kind = worstVitalKind(tickIndex, series);
   const def = vitalDefinitions[kind];
-  const series = seriesUpTo(kind, tickIndex);
-  const current = series[series.length - 1]!;
-  const baseline = series[0]!;
+  const revealed = seriesUpTo(kind, tickIndex, series);
+  const current = revealed[revealed.length - 1]!;
+  const baseline = revealed[0]!;
   const level = severityForVital(kind, current.value);
 
   const linkedSignalEvent = events.find((e) => e.type === "vital" && e.severity === "critical");
@@ -102,10 +109,10 @@ export function buildEvidenceGraph(tickIndex: number, events: ClinicalEvent[]): 
       id: "encounter",
       kind: "context",
       label: "Encounter",
-      sublabel: patient.encounterLabel,
+      sublabel: patientMeta.encounterLabel,
       severity: "neutral",
-      sourceText: `Encounter record: ${patient.name}, ${patient.age}, ${patient.encounterLabel}. Admitted for elective coronary artery bypass grafting.`,
-      highlight: patient.encounterLabel,
+      sourceText: `Encounter record: ${patientMeta.name}, ${patientMeta.age}, ${patientMeta.encounterLabel}.`,
+      highlight: patientMeta.encounterLabel,
     },
   ];
 

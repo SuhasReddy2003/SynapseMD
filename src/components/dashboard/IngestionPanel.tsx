@@ -36,7 +36,7 @@ function formatTime(iso: string): string {
 }
 
 export function IngestionPanel() {
-  const { events, ingestedCount, addIngestedEvent } = usePatient();
+  const { events, ingestedCount, addIngestedEvent, dataset } = usePatient();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -51,7 +51,7 @@ export function IngestionPanel() {
     const isLastStage = stageIndex >= ingestionStageLabels.length - 1;
     const timer = setTimeout(() => {
       if (isLastStage) {
-        const event = buildIngestedEvent(ingestedCount);
+        const event = buildIngestedEvent(ingestedCount, dataset.patient.id, dataset.vitalSeries);
         addIngestedEvent(event);
         setLastAdded(event);
         setStatus("done");

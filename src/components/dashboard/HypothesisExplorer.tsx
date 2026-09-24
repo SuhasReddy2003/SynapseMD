@@ -40,10 +40,10 @@ function EvidenceList({
 }
 
 export function HypothesisExplorer() {
-  const { tickIndex, events } = usePatient();
+  const { tickIndex, events, dataset } = usePatient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const hypotheses = reasoningProvider.generateHypotheses(tickIndex, events);
+  const hypotheses = reasoningProvider.generateHypotheses(tickIndex, events, dataset.vitalSeries);
 
   return (
     <div className="panel flex h-full flex-col">

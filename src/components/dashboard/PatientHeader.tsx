@@ -13,7 +13,7 @@ const displayOrder: VitalKind[] = ["heartRate", "spo2", "map", "temperature", "p
 const FOCUS_DURATION_MS = 3000;
 
 export function PatientHeader() {
-  const { tickIndex } = usePatient();
+  const { tickIndex, dataset } = usePatient();
   const { signalsOnly, focusVital, setFocusVital } = useCommandState();
 
   // A command-driven focus is a momentary spotlight, not a sticky setting.
@@ -24,7 +24,9 @@ export function PatientHeader() {
   }, [focusVital, setFocusVital]);
 
   const visible = signalsOnly
-    ? displayOrder.filter((kind) => severityForVital(kind, latestObservation(kind, tickIndex).value) !== "normal")
+    ? displayOrder.filter(
+        (kind) => severityForVital(kind, latestObservation(kind, tickIndex, dataset.vitalSeries).value) !== "normal"
+      )
     : displayOrder;
 
   const gridColsClass: Record<number, string> = {
@@ -53,7 +55,7 @@ export function PatientHeader() {
     >
       {visible.map((kind) => {
         const def = vitalDefinitions[kind];
-        const observation = latestObservation(kind, tickIndex);
+        const observation = latestObservation(kind, tickIndex, dataset.vitalSeries);
         const level = severityForVital(kind, observation.value);
         const isFocused = focusVital === kind;
 

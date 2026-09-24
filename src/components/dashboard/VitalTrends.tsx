@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   CartesianGrid,
   Line,
@@ -12,9 +13,10 @@ import {
 } from "recharts";
 import { usePatient } from "@/components/patient/PatientContext";
 import { nearestEvent, seriesUpTo } from "@/lib/clinical-engine";
+import { worstVitalKind } from "@/lib/evidence-engine";
 import { colors } from "@/lib/design-tokens";
 import { vitalDefinitions } from "@/lib/mock-data";
-import type { ClinicalEvent } from "@/lib/types";
+import type { ClinicalEvent, VitalKind } from "@/lib/types";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -24,23 +26,32 @@ function formatTime(iso: string): string {
   });
 }
 
+function paddedDomain(values: number[]): [number, number] {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const pad = Math.max((max - min) * 0.2, 1);
+  return [Math.floor(min - pad), Math.ceil(max + pad)];
+}
+
 interface ChartPoint {
   timestamp: string;
   time: string;
-  potassium: number;
-  map: number;
+  primary: number;
+  secondary: number;
 }
 
 function CustomTooltip({
   active,
   payload,
-  label,
   events,
+  primaryKind,
+  secondaryKind,
 }: {
   active?: boolean;
   payload?: { dataKey: string; value: number }[];
-  label?: string;
   events: ClinicalEvent[];
+  primaryKind: VitalKind;
+  secondaryKind: VitalKind;
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const point = payload[0] as unknown as { payload: ChartPoint };
@@ -52,8 +63,8 @@ function CustomTooltip({
       <p className="text-xs text-ink-tertiary">{formatTime(timestamp)}</p>
       <div className="mt-1.5 space-y-1">
         {payload.map((entry) => {
-          const isPotassium = entry.dataKey === "potassium";
-          const def = isPotassium ? vitalDefinitions.potassium : vitalDefinitions.map;
+          const kind = entry.dataKey === "primary" ? primaryKind : secondaryKind;
+          const def = vitalDefinitions[kind];
           return (
             <div key={entry.dataKey} className="flex items-center justify-between gap-4 text-sm">
               <span className="text-ink-secondary">{def.label}</span>
@@ -75,16 +86,25 @@ function CustomTooltip({
 }
 
 export function VitalTrends() {
-  const { tickIndex, events } = usePatient();
+  const { tickIndex, events, dataset } = usePatient();
 
-  const potassiumSeries = seriesUpTo("potassium", tickIndex);
-  const mapSeries = seriesUpTo("map", tickIndex);
-  const data: ChartPoint[] = potassiumSeries.map((obs, i) => ({
+  const primaryKind = worstVitalKind(tickIndex, dataset.vitalSeries);
+  const secondaryKind: VitalKind = primaryKind === "map" ? "potassium" : "map";
+  const primaryDef = vitalDefinitions[primaryKind];
+  const secondaryDef = vitalDefinitions[secondaryKind];
+
+  const primarySeries = seriesUpTo(primaryKind, tickIndex, dataset.vitalSeries);
+  const secondarySeries = seriesUpTo(secondaryKind, tickIndex, dataset.vitalSeries);
+
+  const data: ChartPoint[] = primarySeries.map((obs, i) => ({
     timestamp: obs.timestamp,
     time: formatTime(obs.timestamp),
-    potassium: obs.value,
-    map: mapSeries[i]!.value,
+    primary: obs.value,
+    secondary: secondarySeries[i]!.value,
   }));
+
+  const primaryDomain = useMemo(() => paddedDomain(primarySeries.map((o) => o.value)), [primarySeries]);
+  const secondaryDomain = useMemo(() => paddedDomain(secondarySeries.map((o) => o.value)), [secondarySeries]);
 
   const medicationEvent = events.find((e) => e.type === "medication");
 
@@ -92,17 +112,19 @@ export function VitalTrends() {
     <div className="panel flex h-full flex-col">
       <div className="panel-header">
         <div>
-          <p className="text-sm font-medium text-ink-primary">Potassium &amp; MAP</p>
+          <p className="text-sm font-medium text-ink-primary">
+            {primaryDef.label} &amp; {secondaryDef.label}
+          </p>
           <p className="text-[11px] text-ink-tertiary">Hover a point for the nearest recorded event</p>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-ink-tertiary">
           <span className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: colors.signal.critical }} />
-            Potassium
+            {primaryDef.label}
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: colors.synapse.DEFAULT }} />
-            MAP
+            {secondaryDef.label}
           </span>
         </div>
       </div>
@@ -120,26 +142,26 @@ export function VitalTrends() {
               minTickGap={24}
             />
             <YAxis
-              yAxisId="potassium"
-              domain={[3.5, 6.2]}
+              yAxisId="primary"
+              domain={primaryDomain}
               tick={{ fill: colors.ink.tertiary, fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               width={32}
             />
             <YAxis
-              yAxisId="map"
+              yAxisId="secondary"
               orientation="right"
-              domain={[60, 95]}
+              domain={secondaryDomain}
               tick={{ fill: colors.ink.tertiary, fontSize: 11 }}
               tickLine={false}
               axisLine={false}
               width={32}
             />
-            <Tooltip content={<CustomTooltip events={events} />} />
+            <Tooltip content={<CustomTooltip events={events} primaryKind={primaryKind} secondaryKind={secondaryKind} />} />
             {medicationEvent && (
               <ReferenceLine
-                yAxisId="potassium"
+                yAxisId="primary"
                 x={formatTime(medicationEvent.timestamp)}
                 stroke={colors.signal.warning}
                 strokeDasharray="3 3"
@@ -147,9 +169,9 @@ export function VitalTrends() {
               />
             )}
             <Line
-              yAxisId="potassium"
+              yAxisId="primary"
               type="monotone"
-              dataKey="potassium"
+              dataKey="primary"
               stroke={colors.signal.critical}
               strokeWidth={2}
               dot={false}
@@ -157,9 +179,9 @@ export function VitalTrends() {
               isAnimationActive={false}
             />
             <Line
-              yAxisId="map"
+              yAxisId="secondary"
               type="monotone"
-              dataKey="map"
+              dataKey="secondary"
               stroke={colors.synapse.DEFAULT}
               strokeWidth={2}
               dot={false}

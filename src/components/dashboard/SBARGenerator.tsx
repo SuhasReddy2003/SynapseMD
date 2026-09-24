@@ -31,7 +31,7 @@ function formatTime(iso: string): string {
 }
 
 export function SBARGenerator() {
-  const { tickIndex, events } = usePatient();
+  const { tickIndex, events, dataset } = usePatient();
   const { sbarAutoGenerateToken } = useCommandState();
   const [report, setReport] = useState<SBARReport | null>(null);
   const [status, setStatus] = useState<"idle" | "streaming" | "done">("idle");
@@ -40,6 +40,16 @@ export function SBARGenerator() {
   const [copied, setCopied] = useState(false);
   const [selected, setSelected] = useState<DrawerContent | null>(null);
   const isFirstAutoGenerate = useRef(true);
+
+  // A generated handoff belongs to the patient it was built from — clear it on switch.
+  useEffect(() => {
+    setReport(null);
+    setStatus("idle");
+    setSectionIndex(0);
+    setCharCount(0);
+    setCopied(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataset.patient.id]);
 
   useEffect(() => {
     if (isFirstAutoGenerate.current) {
@@ -69,7 +79,7 @@ export function SBARGenerator() {
   }, [status, report, sectionIndex, charCount]);
 
   function generate() {
-    setReport(reasoningProvider.generateSBAR(tickIndex, events));
+    setReport(reasoningProvider.generateSBAR(tickIndex, events, dataset.vitalSeries, dataset.patient));
     setSectionIndex(0);
     setCharCount(0);
     setStatus("streaming");

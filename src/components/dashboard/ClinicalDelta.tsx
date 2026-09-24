@@ -1,16 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CircleCheck, CircleX, Minus, TrendingDown, TrendingUp } from "lucide-react";
 import clsx from "clsx";
 import { usePatient } from "@/components/patient/PatientContext";
 import { buildClinicalDelta, eventsUpTo } from "@/lib/clinical-engine";
-import { clinicalEvents, vitalSeries } from "@/lib/mock-data";
 import { eventTypeIcon } from "@/components/dashboard/eventMeta";
 import { reasoningProvider } from "@/lib/reasoning-engine";
 import { SeverityDot } from "@/components/ui/Severity";
 import { ReasoningDrawer, type DrawerContent } from "@/components/dashboard/ReasoningDrawer";
-import type { MedicationDeltaEntry, VitalDeltaEntry } from "@/lib/types";
+import type { MedicationDeltaEntry, VitalDeltaEntry, VitalObservation } from "@/lib/types";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -24,11 +23,13 @@ function TimeSelect({
   label,
   value,
   max,
+  series,
   onChange,
 }: {
   label: string;
   value: number;
   max: number;
+  series: VitalObservation[];
   onChange: (index: number) => void;
 }) {
   return (
@@ -41,7 +42,7 @@ function TimeSelect({
       >
         {Array.from({ length: max + 1 }, (_, i) => i).map((i) => (
           <option key={i} value={i}>
-            {formatTime(vitalSeries.heartRate[i]!.timestamp)}
+            {formatTime(series[i]!.timestamp)}
           </option>
         ))}
       </select>
@@ -113,12 +114,22 @@ function MedicationDeltaRow({ entry, onSelect }: { entry: MedicationDeltaEntry; 
 }
 
 export function ClinicalDelta() {
-  const { tickIndex } = usePatient();
+  const { tickIndex, dataset } = usePatient();
   const [fromIndex, setFromIndex] = useState(() => Math.max(0, tickIndex - 8));
   const [toIndex, setToIndex] = useState(tickIndex);
   const [selected, setSelected] = useState<DrawerContent | null>(null);
 
-  const delta = useMemo(() => buildClinicalDelta(fromIndex, toIndex), [fromIndex, toIndex]);
+  // Switching patients restarts the comparison window at the same relative offset.
+  useEffect(() => {
+    setFromIndex(Math.max(0, tickIndex - 8));
+    setToIndex(tickIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataset.patient.id]);
+
+  const delta = useMemo(
+    () => buildClinicalDelta(fromIndex, toIndex, dataset.vitalSeries, dataset.clinicalEvents),
+    [fromIndex, toIndex, dataset]
+  );
 
   function selectVital(entry: VitalDeltaEntry) {
     setSelected({
@@ -134,7 +145,7 @@ export function ClinicalDelta() {
   }
 
   function selectMedication(entry: MedicationDeltaEntry) {
-    const event = clinicalEvents.find((e) => e.id === entry.eventId);
+    const event = dataset.clinicalEvents.find((e) => e.id === entry.eventId);
     if (!event) return;
     setSelected({
       id: event.id,
@@ -145,7 +156,7 @@ export function ClinicalDelta() {
       severity: event.severity,
       sourceText: event.sourceText,
       highlight: event.highlight,
-      steps: reasoningProvider.explainEvent(event, eventsUpTo(toIndex)),
+      steps: reasoningProvider.explainEvent(event, eventsUpTo(toIndex, dataset.clinicalEvents, dataset.vitalSeries)),
     });
   }
 
@@ -157,8 +168,8 @@ export function ClinicalDelta() {
           <p className="text-[11px] text-ink-tertiary">Compare two points in the revealed record</p>
         </div>
         <div className="flex items-center gap-3">
-          <TimeSelect label="From" value={fromIndex} max={tickIndex} onChange={setFromIndex} />
-          <TimeSelect label="To" value={toIndex} max={tickIndex} onChange={setToIndex} />
+          <TimeSelect label="From" value={fromIndex} max={tickIndex} series={dataset.vitalSeries.heartRate} onChange={setFromIndex} />
+          <TimeSelect label="To" value={toIndex} max={tickIndex} series={dataset.vitalSeries.heartRate} onChange={setToIndex} />
         </div>
       </div>
 
