@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, FileText, Loader2, UploadCloud } from "lucide-react";
 import clsx from "clsx";
 import { usePatient } from "@/components/patient/PatientContext";
+import { useToast } from "@/components/dashboard/ToastContext";
 import { buildIngestedEvent, ingestionStageLabels } from "@/lib/ingestion-engine";
 import { eventTypeDisplayLabel, eventTypeIcon } from "@/components/dashboard/eventMeta";
 import { SeverityDot } from "@/components/ui/Severity";
@@ -37,6 +38,7 @@ function formatTime(iso: string): string {
 
 export function IngestionPanel() {
   const { events, ingestedCount, addIngestedEvent, dataset } = usePatient();
+  const { showToast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -55,6 +57,7 @@ export function IngestionPanel() {
         addIngestedEvent(event);
         setLastAdded(event);
         setStatus("done");
+        showToast(`Added "${event.title}" to the timeline`, "success");
       } else {
         setStageIndex((i) => i + 1);
       }

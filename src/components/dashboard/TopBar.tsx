@@ -6,12 +6,12 @@ import { useCommandState } from "@/components/dashboard/CommandContext";
 import { unresolvedSignals } from "@/lib/clinical-engine";
 import { SeverityDot } from "@/components/ui/Severity";
 import { Button } from "@/components/ui/Button";
-import { Menu, Search } from "lucide-react";
+import { Compass, Menu, Search } from "lucide-react";
 import { PatientSelector } from "@/components/dashboard/PatientSelector";
 
 export function TopBar() {
   const { patient, tickIndex, dataset } = usePatient();
-  const { setPaletteOpen, setSidebarOpen } = useCommandState();
+  const { setPaletteOpen, setSidebarOpen, bumpTour } = useCommandState();
   const { count, worst } = unresolvedSignals(tickIndex, dataset.vitalSeries);
 
   return (
@@ -55,6 +55,10 @@ export function TopBar() {
             ? "No unresolved signals"
             : `${count} unresolved signal${count > 1 ? "s" : ""}`}
         </span>
+        <Button variant="secondary" size="sm" onClick={bumpTour} aria-label="Take the guided tour">
+          <Compass className="h-3.5 w-3.5" strokeWidth={1.75} />
+          <span className="hidden sm:inline">Tour</span>
+        </Button>
         <Link href="/">
           <Button variant="ghost" size="sm">
             Exit demo

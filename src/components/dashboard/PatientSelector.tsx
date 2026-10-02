@@ -4,9 +4,11 @@ import { useState } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import clsx from "clsx";
 import { usePatient } from "@/components/patient/PatientContext";
+import { useToast } from "@/components/dashboard/ToastContext";
 
 export function PatientSelector() {
   const { patient, patients, selectedPatientId, setSelectedPatientId } = usePatient();
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
 
   return (
@@ -34,6 +36,7 @@ export function PatientSelector() {
                   onClick={() => {
                     setSelectedPatientId(p.id);
                     setOpen(false);
+                    if (p.id !== selectedPatientId) showToast(`Switched to ${p.name}`);
                   }}
                   className={clsx(
                     "flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors duration-150 ease-product hover:bg-base-200",

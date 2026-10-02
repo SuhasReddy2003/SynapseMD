@@ -17,6 +17,8 @@ export interface EvidenceNode {
   highlight: string;
   /** When present, this node is backed by a real ClinicalEvent and can show a full reasoning trace. */
   linkedEvent?: ClinicalEvent;
+  /** When this piece of evidence happened — orders the replay. Context nodes have none. */
+  timestamp?: string;
 }
 
 export interface EvidenceEdge {
@@ -92,6 +94,7 @@ export function buildEvidenceGraph(
       kind: "observation",
       label: "Current observation",
       sublabel: formatTime(current.timestamp),
+      timestamp: current.timestamp,
       severity: level,
       sourceText: `Monitor reading: ${def.label} ${current.value.toFixed(def.decimals)} ${def.unit} recorded at ${formatTime(current.timestamp)}.`,
       highlight: `${current.value.toFixed(def.decimals)} ${def.unit}`,
@@ -101,6 +104,7 @@ export function buildEvidenceGraph(
       kind: "observation",
       label: `Previous ${def.label.toLowerCase()}`,
       sublabel: formatTime(baseline.timestamp),
+      timestamp: baseline.timestamp,
       severity: "neutral",
       sourceText: `Monitor reading: ${def.label} ${baseline.value.toFixed(def.decimals)} ${def.unit} recorded at ${formatTime(baseline.timestamp)}, prior to the current trend.`,
       highlight: `${baseline.value.toFixed(def.decimals)} ${def.unit}`,
@@ -122,6 +126,7 @@ export function buildEvidenceGraph(
       kind: "event",
       label: medicationEvent.title,
       sublabel: formatTime(medicationEvent.timestamp),
+      timestamp: medicationEvent.timestamp,
       severity: medicationEvent.severity,
       sourceText: medicationEvent.sourceText,
       highlight: medicationEvent.highlight,
@@ -135,6 +140,7 @@ export function buildEvidenceGraph(
       kind: "event",
       label: noteEvent.title,
       sublabel: formatTime(noteEvent.timestamp),
+      timestamp: noteEvent.timestamp,
       severity: noteEvent.severity,
       sourceText: noteEvent.sourceText,
       highlight: noteEvent.highlight,
@@ -155,4 +161,20 @@ export function buildEvidenceGraph(
     .map((n) => ({ id: `signal-${n.id}`, source: "signal", target: n.id, label: edgeLabel[n.id] ?? "relates to" }));
 
   return { focusVital: kind, nodes, edges };
+}
+
+/**
+ * The order evidence would have accumulated in: background context first,
+ * then every record in the order it was written. The signal itself is the
+ * conclusion, so it is not part of the replay sequence.
+ */
+export function replayOrder(graph: EvidenceGraph): EvidenceNode[] {
+  return graph.nodes
+    .filter((n) => n.kind !== "signal")
+    .sort((a, b) => {
+      if (!a.timestamp && !b.timestamp) return 0;
+      if (!a.timestamp) return -1;
+      if (!b.timestamp) return 1;
+      return a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id);
+    });
 }

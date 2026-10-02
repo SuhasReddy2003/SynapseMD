@@ -36,6 +36,12 @@ export const colors = {
     dim: "#1C2040",
     bright: "#9AA8FF",
   },
+  /** For comparing multiple patients on one chart — deliberately outside the
+   *  severity palette so a comparison line is never mistaken for a clinical alert. */
+  compare: {
+    a: "#5EA8FF",
+    b: "#D48BEF",
+  },
 } as const;
 
 export type SeverityLevel = "normal" | "warning" | "critical" | "neutral";

@@ -7,6 +7,8 @@ export interface CommandActions {
   setSignalsOnly: (value: boolean) => void;
   setFocusVital: (kind: VitalKind | null) => void;
   bumpSbarAutoGenerate: () => void;
+  bumpEvidenceReplay: () => void;
+  bumpTour: () => void;
 }
 
 export interface Command {
@@ -39,6 +41,20 @@ export const commands: Command[] = [
       a.setSignalsOnly(false);
       a.setFocusVital("map");
     },
+  },
+  {
+    id: "show-missing-context",
+    label: "Show missing context",
+    hint: "Gaps the record does not answer",
+    keywords: ["missing context", "unresolved context", "gaps", "what's missing", "missing"],
+    run: (a) => a.setActiveSection("context"),
+  },
+  {
+    id: "show-ward-board",
+    label: "Show ward board",
+    hint: "All patients ranked at this moment",
+    keywords: ["ward", "ward board", "all patients", "census"],
+    run: (a) => a.setActiveSection("ward"),
   },
   {
     id: "show-unresolved-signals",
@@ -87,6 +103,23 @@ export const commands: Command[] = [
     hint: "Evidence graph",
     keywords: ["evidence", "evidence graph", "graph", "relationships"],
     run: (a) => a.setActiveSection("evidence"),
+  },
+  {
+    id: "replay-reasoning",
+    label: "Replay reasoning",
+    hint: "Watch the evidence graph rebuild itself in order",
+    keywords: ["replay", "replay reasoning", "replay evidence", "rebuild"],
+    run: (a) => {
+      a.setActiveSection("evidence");
+      setTimeout(() => a.bumpEvidenceReplay(), 400);
+    },
+  },
+  {
+    id: "start-tour",
+    label: "Take the guided tour",
+    hint: "A 60-second walkthrough that drives the real app",
+    keywords: ["tour", "guide", "guided tour", "walkthrough", "demo", "help me"],
+    run: (a) => a.bumpTour(),
   },
   {
     id: "show-hypotheses",
@@ -140,4 +173,8 @@ export function matchCommands(query: string): Command[] {
       c.label.toLowerCase().includes(q) ||
       c.keywords.some((k) => k.includes(q) || q.includes(k))
   );
+}
+
+export function commandById(id: string): Command | undefined {
+  return commands.find((c) => c.id === id);
 }

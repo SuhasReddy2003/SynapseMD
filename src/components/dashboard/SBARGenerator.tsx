@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, FileStack, RotateCcw, Trash2 } from "lucide-react";
+import { Check, Copy, Download, FileStack, RotateCcw, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { usePatient } from "@/components/patient/PatientContext";
 import { useCommandState } from "@/components/dashboard/CommandContext";
+import { useToast } from "@/components/dashboard/ToastContext";
 import { reasoningProvider } from "@/lib/reasoning-engine";
 import { eventTypeIcon } from "@/components/dashboard/eventMeta";
 import { Button } from "@/components/ui/Button";
@@ -30,9 +31,14 @@ function formatTime(iso: string): string {
   });
 }
 
+function buildReportText(report: SBARReport): string {
+  return report.sections.map((s) => `${sectionPrefix[s.id]} — ${s.label}\n${s.content}`).join("\n\n");
+}
+
 export function SBARGenerator() {
   const { tickIndex, events, dataset } = usePatient();
   const { sbarAutoGenerateToken } = useCommandState();
+  const { showToast } = useToast();
   const [report, setReport] = useState<SBARReport | null>(null);
   const [status, setStatus] = useState<"idle" | "streaming" | "done">("idle");
   const [sectionIndex, setSectionIndex] = useState(0);
@@ -65,6 +71,7 @@ export function SBARGenerator() {
     const section = report.sections[sectionIndex];
     if (!section) {
       setStatus("done");
+      showToast("Handoff generated", "success");
       return;
     }
     if (charCount >= section.content.length) {
@@ -96,13 +103,22 @@ export function SBARGenerator() {
 
   function copyReport() {
     if (!report) return;
-    const text = report.sections
-      .map((s) => `${sectionPrefix[s.id]} — ${s.label}\n${s.content}`)
-      .join("\n\n");
-    navigator.clipboard.writeText(text).then(() => {
+    navigator.clipboard.writeText(buildReportText(report)).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     });
+  }
+
+  function downloadReport() {
+    if (!report) return;
+    const blob = new Blob([buildReportText(report)], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${dataset.patient.name.replace(/\s+/g, "-").toLowerCase()}-sbar-${formatTime(report.generatedAtTimestamp).replace(":", "")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Handoff downloaded", "success");
   }
 
   function selectEvidence(event: ClinicalEvent) {
@@ -133,6 +149,10 @@ export function SBARGenerator() {
             <Button variant="secondary" size="sm" onClick={copyReport} disabled={status !== "done"}>
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy report"}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={downloadReport} disabled={status !== "done"}>
+              <Download className="h-3.5 w-3.5" />
+              Download
             </Button>
             <Button variant="secondary" size="sm" onClick={generate}>
               <RotateCcw className="h-3.5 w-3.5" />

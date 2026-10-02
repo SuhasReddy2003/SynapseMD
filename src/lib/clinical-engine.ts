@@ -71,7 +71,7 @@ export function nearestEventOfType(
   return nearestEvent(timestamp, events.filter((e) => e.type === type));
 }
 
-function componentScore(kind: VitalKind, tickIndex: number, series: SeriesMap): number {
+export function componentScore(kind: VitalKind, tickIndex: number, series: SeriesMap): number {
   const value = latestObservation(kind, tickIndex, series).value;
   const def = vitalDefinitions[kind];
   const [normalLow, normalHigh] = def.normalRange;

@@ -11,6 +11,8 @@ interface CommandContextValue extends CommandActions {
   signalsOnly: boolean;
   focusVital: VitalKind | null;
   sbarAutoGenerateToken: number;
+  evidenceReplayToken: number;
+  tourToken: number;
   paletteOpen: boolean;
   setPaletteOpen: (open: boolean) => void;
   sidebarOpen: boolean;
@@ -31,6 +33,8 @@ export function CommandProvider({
   const [signalsOnly, setSignalsOnly] = useState(false);
   const [focusVital, setFocusVital] = useState<VitalKind | null>(null);
   const [sbarAutoGenerateToken, setSbarAutoGenerateToken] = useState(0);
+  const [evidenceReplayToken, setEvidenceReplayToken] = useState(0);
+  const [tourToken, setTourToken] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -45,13 +49,17 @@ export function CommandProvider({
       focusVital,
       setFocusVital,
       sbarAutoGenerateToken,
+      evidenceReplayToken,
+      tourToken,
+      bumpTour: () => setTourToken((t) => t + 1),
+      bumpEvidenceReplay: () => setEvidenceReplayToken((t) => t + 1),
       bumpSbarAutoGenerate: () => setSbarAutoGenerateToken((t) => t + 1),
       paletteOpen,
       setPaletteOpen,
       sidebarOpen,
       setSidebarOpen,
     }),
-    [activeSection, timelineFilter, signalsOnly, focusVital, sbarAutoGenerateToken, paletteOpen, sidebarOpen]
+    [activeSection, timelineFilter, signalsOnly, focusVital, sbarAutoGenerateToken, evidenceReplayToken, tourToken, paletteOpen, sidebarOpen]
   );
 
   return <CommandContext.Provider value={value}>{children}</CommandContext.Provider>;

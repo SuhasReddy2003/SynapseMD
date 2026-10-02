@@ -7,14 +7,18 @@ import {
   GitCompareArrows,
   FileStack,
   UploadCloud,
+  FileQuestion,
+  Users,
 } from "lucide-react";
 
 export type SectionId =
   | "overview"
+  | "ward"
   | "timeline"
   | "ingestion"
   | "evidence"
   | "hypotheses"
+  | "context"
   | "delta"
   | "sbar";
 
@@ -34,6 +38,13 @@ export const dashboardSections: DashboardSection[] = [
     description: "Patient state, vitals and the Synapse State Index",
     icon: LayoutDashboard,
     phase: 2,
+  },
+  {
+    id: "ward",
+    label: "Ward board",
+    description: "Every patient ranked at the same moment in time",
+    icon: Users,
+    phase: 12,
   },
   {
     id: "timeline",
@@ -62,6 +73,13 @@ export const dashboardSections: DashboardSection[] = [
     description: "Ranked, evidence-linked explanations for a signal",
     icon: Waypoints,
     phase: 5,
+  },
+  {
+    id: "context",
+    label: "Unresolved context",
+    description: "What the record does not contain",
+    icon: FileQuestion,
+    phase: 12,
   },
   {
     id: "delta",

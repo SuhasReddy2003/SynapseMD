@@ -4,10 +4,36 @@ import { useEffect } from "react";
 import clsx from "clsx";
 import { usePatient } from "@/components/patient/PatientContext";
 import { useCommandState } from "@/components/dashboard/CommandContext";
-import { latestObservation, severityForVital } from "@/lib/clinical-engine";
+import { latestObservation, seriesUpTo, severityForVital } from "@/lib/clinical-engine";
 import { vitalDefinitions } from "@/lib/mock-data";
 import { SeverityDot } from "@/components/ui/Severity";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { severityColor } from "@/lib/design-tokens";
 import type { VitalKind } from "@/lib/types";
+
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) return <div className="mt-1.5 h-6" />;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(max - min, 0.001);
+  const points = values
+    .map((v, i) => `${(i / (values.length - 1)) * 100},${22 - ((v - min) / span) * 20}`)
+    .join(" ");
+
+  return (
+    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="mt-1.5 h-6 w-full">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="transition-all duration-500 ease-product"
+      />
+    </svg>
+  );
+}
 
 const displayOrder: VitalKind[] = ["heartRate", "spo2", "map", "temperature", "potassium"];
 const FOCUS_DURATION_MS = 3000;
@@ -72,9 +98,13 @@ export function PatientHeader() {
               {def.label}
             </div>
             <p className="tabular mt-1.5 text-2xl text-ink-primary">
-              {observation.value.toFixed(def.decimals)}
+              <AnimatedNumber value={observation.value} decimals={def.decimals} />
               <span className="ml-1 text-xs text-ink-tertiary">{def.unit}</span>
             </p>
+            <Sparkline
+              values={seriesUpTo(kind, tickIndex, dataset.vitalSeries).map((o) => o.value)}
+              color={severityColor[level]}
+            />
           </div>
         );
       })}

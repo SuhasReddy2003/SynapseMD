@@ -3,6 +3,7 @@
 import { usePatient } from "@/components/patient/PatientContext";
 import { severityColor } from "@/lib/design-tokens";
 import clsx from "clsx";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 
 const RADIUS = 46;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -46,7 +47,7 @@ export function StabilityIndex() {
             />
           </svg>
           <div className="absolute flex flex-col items-center">
-            <span className="tabular text-3xl text-ink-primary">{synapseIndex.score}</span>
+            <span className="tabular text-3xl text-ink-primary"><AnimatedNumber value={synapseIndex.score} duration={900} /></span>
             <span className="text-[11px] text-ink-tertiary">of 100</span>
           </div>
         </div>

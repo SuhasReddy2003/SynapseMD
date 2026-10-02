@@ -9,6 +9,10 @@ import type { EvidenceNode } from "@/lib/evidence-engine";
 export interface EvidenceFlowNodeData {
   node: EvidenceNode;
   onSelect: (node: EvidenceNode) => void;
+  /** During a replay, evidence that hasn't been "written" yet stays invisible. */
+  hidden?: boolean;
+  /** The piece of evidence that just arrived. */
+  fresh?: boolean;
 }
 
 const severityBorder: Record<string, string> = {
@@ -19,7 +23,7 @@ const severityBorder: Record<string, string> = {
 };
 
 export function EvidenceNodeCard({ data }: { data: EvidenceFlowNodeData }) {
-  const { node, onSelect } = data;
+  const { node, onSelect, hidden, fresh } = data;
   const Icon = evidenceNodeIcon(node);
   const isSignal = node.kind === "signal";
 
@@ -27,7 +31,9 @@ export function EvidenceNodeCard({ data }: { data: EvidenceFlowNodeData }) {
     <button
       onClick={() => onSelect(node)}
       className={clsx(
-        "w-[230px] rounded-lg border bg-base-200 px-3.5 py-3 text-left shadow-panel transition-colors duration-150 ease-product hover:bg-base-300",
+        "w-[230px] rounded-lg border bg-base-200 px-3.5 py-3 text-left shadow-panel transition-[opacity,transform,background-color,box-shadow] duration-500 ease-product hover:bg-base-300",
+        hidden && "pointer-events-none translate-x-3 scale-95 opacity-0",
+        fresh && "shadow-[0_0_0_1px_rgba(122,140,255,0.55),0_0_28px_-4px_rgba(122,140,255,0.45)]",
         severityBorder[node.severity],
         isSignal && "bg-base-300"
       )}

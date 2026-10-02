@@ -6,6 +6,8 @@ import clsx from "clsx";
 import { usePatient } from "@/components/patient/PatientContext";
 import { reasoningProvider } from "@/lib/reasoning-engine";
 import { colors } from "@/lib/design-tokens";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { useFlipReorder } from "@/components/dashboard/useFlipReorder";
 
 function EvidenceList({
   icon: Icon,
@@ -44,6 +46,7 @@ export function HypothesisExplorer() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const hypotheses = reasoningProvider.generateHypotheses(tickIndex, events, dataset.vitalSeries);
+  const { registerRef } = useFlipReorder(hypotheses.map((h) => h.id));
 
   return (
     <div className="panel flex h-full flex-col">
@@ -63,7 +66,7 @@ export function HypothesisExplorer() {
             const isWeak = h.confidence < 15;
 
             return (
-              <div key={h.id} className="relative">
+              <div key={h.id} ref={registerRef(h.id)} className="relative">
                 <span
                   className="absolute -left-[29px] top-4 h-2 w-2 rounded-full border-2 border-base-100"
                   style={{ background: isWeak ? colors.base[500] : colors.synapse.DEFAULT }}
@@ -83,7 +86,7 @@ export function HypothesisExplorer() {
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-medium text-ink-primary">{h.title}</p>
                         <span className="tabular text-xs text-ink-tertiary">
-                          {h.confidence}% synthetic confidence
+                          <AnimatedNumber value={h.confidence} />% synthetic confidence
                         </span>
                       </div>
                       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-base-300">

@@ -84,11 +84,47 @@ const config: Config = {
           "0%": { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(100%)" },
         },
+        "ekg-scroll": {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
+        "value-flash": {
+          "0%": { color: "#9AA8FF", textShadow: "0 0 14px rgba(122,140,255,0.6)" },
+          "100%": { color: "inherit", textShadow: "0 0 0 rgba(122,140,255,0)" },
+        },
+        "section-in": {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "alarm-edge": {
+          "0%, 100%": { boxShadow: "inset 0 0 90px rgba(240,71,92,0.06)" },
+          "50%": { boxShadow: "inset 0 0 130px rgba(240,71,92,0.2)" },
+        },
+        sweep: {
+          "0%": { transform: "scaleX(0)", opacity: "1" },
+          "70%": { transform: "scaleX(1)", opacity: "1" },
+          "100%": { transform: "scaleX(1)", opacity: "0" },
+        },
+        "log-in": {
+          "0%": { opacity: "0", transform: "translateX(-10px)", backgroundColor: "rgba(122,140,255,0.14)" },
+          "100%": { opacity: "1", transform: "translateX(0)", backgroundColor: "rgba(122,140,255,0)" },
+        },
+        "card-rise": {
+          "0%": { opacity: "0", transform: "translateY(16px) scale(0.98)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
       },
       animation: {
         "pulse-live": "pulse-live 2.2s ease-in-out infinite",
         "fade-in": "fade-in 0.35s cubic-bezier(0.16,1,0.3,1)",
         "scan-line": "scan-line 1.6s ease-in-out infinite",
+        "ekg-scroll": "ekg-scroll 5.5s linear infinite",
+        "value-flash": "value-flash 1.1s cubic-bezier(0.16,1,0.3,1)",
+        "section-in": "section-in 0.34s cubic-bezier(0.16,1,0.3,1)",
+        "alarm-edge": "alarm-edge 3.2s ease-in-out infinite",
+        sweep: "sweep 1.1s cubic-bezier(0.16,1,0.3,1) forwards",
+        "log-in": "log-in 0.9s cubic-bezier(0.16,1,0.3,1)",
+        "card-rise": "card-rise 0.45s cubic-bezier(0.16,1,0.3,1)",
       },
       transitionTimingFunction: {
         product: "cubic-bezier(0.16, 1, 0.3, 1)",
