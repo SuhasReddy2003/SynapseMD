@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { commandById } from "@/lib/commands";
@@ -18,7 +19,6 @@ import { PatientHeader } from "@/components/dashboard/PatientHeader";
 import { StabilityIndex } from "@/components/dashboard/StabilityIndex";
 import { VitalTrends } from "@/components/dashboard/VitalTrends";
 import { Timeline } from "@/components/dashboard/Timeline";
-import { EvidenceGraph } from "@/components/dashboard/EvidenceGraph";
 import { HypothesisExplorer } from "@/components/dashboard/HypothesisExplorer";
 import { ClinicalDelta } from "@/components/dashboard/ClinicalDelta";
 import { SBARGenerator } from "@/components/dashboard/SBARGenerator";
@@ -50,6 +50,12 @@ function CommandFromUrl() {
 
   return null;
 }
+
+// React Flow is only needed on one tab — keep it out of the initial dashboard bundle.
+const EvidenceGraph = dynamic(() => import("@/components/dashboard/EvidenceGraph").then((m) => m.EvidenceGraph), {
+  ssr: false,
+  loading: () => <div className="panel h-full animate-pulse-live" aria-busy="true" aria-label="Loading evidence graph" />,
+});
 
 function DashboardShell() {
   const { activeSection } = useCommandState();

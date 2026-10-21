@@ -127,25 +127,36 @@ patient's dataset; nothing re-implements patient state locally.
 
 ## Testing
 
-`src/lib/*.test.ts` covers the engine layer with Vitest — 49 tests across
-7 files: severity banding, synapse index bounds, evidence graph
+`src/lib/*.test.ts` covers the engine layer with Vitest — 59 tests across
+8 files: severity banding, synapse index bounds, evidence graph
 connectivity, hypothesis ranking, SBAR section shape, ingestion
 determinism, missing-context gap detection, and forecast extrapolation —
 run against all 3 patients where relevant. UI components aren't
 unit-tested; the engine is where the actual logic lives.
 
-## Deployment
+## Deployment (Vercel)
 
-Zero-config Vercel deploy — no environment variables required. Optionally
-set `NEXT_PUBLIC_SITE_URL` to your deployed URL so the Open Graph image
-resolves correctly for link previews.
+1. Push the repo to GitHub.
+2. In Vercel: **Add New → Project → import the repo**. The framework preset
+   is detected as Next.js; no build settings or environment variables are
+   required.
+3. Deploy. The Open Graph image URL resolves automatically from Vercel's
+   production domain; set `NEXT_PUBLIC_SITE_URL` only if you attach a
+   custom domain.
+
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and a production
+build on every push and pull request. Security headers (`X-Frame-Options`,
+`nosniff`, `Referrer-Policy`, `Permissions-Policy`) are set in
+`next.config.mjs`.
 
 ## Known limitations
 
-- No error-tracking service wired up (errors just log to console via the
+- Runs on Next 15.5.x. `npm audit` still reports PostCSS issues bundled
+  inside Next's build toolchain; the fix is only available in Next 16 and
+  affects processing of untrusted CSS at build time, which this app does not
+  do. It has no server actions, middleware, rewrites or `next/image`.
+- No error-tracking service wired up (errors log to the console via the
   `error.tsx` boundaries).
-- No E2E tests — only the engine layer has automated coverage.
-- Dashboard bundle is ~158kB first-load JS (React Flow + Recharts); not
-  code-split by section yet.
+- No real-browser e2e or visual regression tests.
 - Mobile is a functional fallback, not the primary designed experience
-  (per the original brief — desktop is primary).
+  (per the original brief, desktop is primary).
