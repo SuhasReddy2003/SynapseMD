@@ -5,7 +5,7 @@
 <br/>
 
 <p>
-  <b><a href="https://YOUR-VERCEL-URL.vercel.app">Live demo</a></b> &nbsp;•&nbsp;
+  <b><a href="https://synapse-md-phi.vercel.app/">Live demo</a></b> &nbsp;•&nbsp;
   <a href="#try-it-in-60-seconds">60-second walkthrough</a> &nbsp;•&nbsp;
   <a href="#one-signal-end-to-end">One signal, end to end</a> &nbsp;•&nbsp;
   <a href="#how-it-works">Architecture</a> &nbsp;•&nbsp;
